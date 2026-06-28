@@ -160,11 +160,12 @@ else:
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- INITIAL SEED GENERATOR HELPER ---
+# --- INITIAL SEED GENERATOR HELPER (FRESH BATCH TO START FROM SAMPLE 1) ---
 def generate_fresh_baseline(size_label):
     np.random.seed(42)
     base_data = []
-    for i in range(1, 15):
+    # Clean setup initialization starting strictly from Sample index #1
+    for i in range(1, 2):
         if "750-16" in size_label:
             row_vals = np.random.normal(11.0137, 0.0395, 5)
         else:
@@ -210,8 +211,8 @@ grand_median = float(np.median(flattened))
 variance_obs = float(np.var(flattened))
 obs_max = float(flattened.max())
 obs_min = float(flattened.min())
-std_dev = average_range / d2
-overall_std = float(np.std(flattened, ddof=1))
+std_dev = average_range / d2 if average_range > 0 else 0.001
+overall_std = float(np.std(flattened, ddof=1)) if len(flattened) > 1 else 0.001
 
 ucl_x = grand_mean + (A2 * average_range)
 lcl_x = grand_mean - (A2 * average_range)
@@ -240,7 +241,7 @@ def build_plots(data_frame, flat_array):
     fig_s = go.Figure()
     fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
     xs = np.linspace(min(flat_array.min(), lsl, tol_max_val), max(flat_array.max(), usl, tol_min_val), 100)
-    ys = norm.pdf(xs, grand_mean, std_dev)
+    ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
     fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
     fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
@@ -290,8 +291,8 @@ with split_col1:
     if current_subgroups >= 20:
         st.error(f"🛑 MAXIMUM CAP REACHED: Engine contains {current_subgroups} Subgroups ({total_obs} samples). Entry closed.")
         
-        if st.button("💾 Archive, Print and Reset to Index #15"):
-            # Execute and preserve Capability Study before clearing active state
+        if st.button("💾 Archive, Print and Reset to Sample #1"):
+            # Compute Capability Indexes for Shift Verification snapshot
             cp = (usl - lsl) / (6 * std_dev) if std_dev > 0 else 0
             cpu = (usl - grand_mean) / (3 * std_dev) if std_dev > 0 else 0
             cpl = (grand_mean - lsl) / (3 * std_dev) if std_dev > 0 else 0
@@ -307,7 +308,7 @@ with split_col1:
                 'flat': flattened.copy(),
                 'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
             }
-            # Hard reset back to 14 standard baseline entries (causing the next row index to sit at exactly #15)
+            # Pure reset protocol back to zero parameters starting from initial Sample #1
             st.session_state[state_key] = generate_fresh_baseline(component_size)
             st.rerun()
     else:
@@ -351,7 +352,6 @@ if archive_key in st.session_state:
     st.markdown("## 🖨️ FINAL CONSOLIDATED SPECIFICATION & CAPABILITY REPORT")
     st.markdown("#### PI & QA Division — Shift Performance Verification Ledger")
     
-    # Calculate Capability Indexes on Frozen Data
     m = arch['metrics']
     
     mc1, mc2, mc3, mc4 = st.columns(4)
@@ -360,7 +360,6 @@ if archive_key in st.session_state:
     mc3.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">TOTAL PERFORMANCE (Pp)</p><h3 style="color:#00FF66;margin:5px 0;">{m["pp"]:.4f}</h3></div>', unsafe_allow_html=True)
     mc4.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">PERFORMANCE INDEX (Ppk)</p><h3 style="color:#00FF66;margin:5px 0;">{m["ppk"]:.4f}</h3></div>', unsafe_allow_html=True)
     
-    # Text Analysis Observations
     st.markdown("#### 📝 CRITICAL QUALITY PERFORMANCE AUDIT OBSERVATIONS:")
     if m['cpk'] >= 1.33:
         st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** The extrusion variant dispersion profile sits safely inside specification boundaries. System exhibits complete statistical stability.")
@@ -371,7 +370,6 @@ if archive_key in st.session_state:
         
     st.markdown("---")
     
-    # Snapshot Dataframe Table Display
     st.markdown("**Archived Raw Data and Computed Limits:**")
     st.dataframe(
         arch['df'].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
@@ -380,7 +378,6 @@ if archive_key in st.session_state:
     
     st.markdown("---")
     
-    # Snapshot Plots Display
     st.markdown("**Archived Analytical Control Graphs:**")
     p1, p2, p3 = st.columns([1.4, 1.4, 1.2])
     afx, afr, afs = build_plots(arch['df'], arch['flat'])
