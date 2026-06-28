@@ -7,113 +7,151 @@ from scipy.stats import norm
 # --- ARCHITECTURAL VISUAL MASTER MATRIX (PREMIUM INDUSTRIAL SPEC) ---
 st.set_page_config(page_title="Horizon Addis Tyre - SPC Center", layout="wide")
 
-# Custom injection of premium CSS to enforce neon-green cyber layout and lock visibility
+# Custom injection of premium CSS to enforce neon cyber grid and custom form visibility
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap');
     
     /* Global Container Lock and Workspace Colors */
     html, body, [data-testid="stAppViewContainer"] {
-        background-color: #08080A !important;
+        background-color: #0A0A0C !important;
         font-family: 'Share Tech Mono', monospace !important;
         color: #00FF66 !important;
     }
     
     /* Artistic Background Title Banner Component */
     .factory-banner {
-        background: linear-gradient(135deg, #0D2B18 0%, #050A06 100%);
+        background: linear-gradient(135deg, #0D2B18 0%, #040805 100%);
         border: 2px solid #00FF66;
         box-shadow: 0px 0px 25px rgba(0, 255, 102, 0.25);
-        border-radius: 8px;
-        padding: 25px;
+        border-radius: 6px;
+        padding: 20px;
         margin-bottom: 25px;
         text-align: center;
         position: relative;
-        overflow: hidden;
-    }
-    .factory-banner::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: linear-gradient(rgba(0, 255, 102, 0.03) 50%, rgba(0, 0, 0, 0) 50%), linear-gradient(90deg, rgba(0, 255, 102, 0.03) 50%, rgba(0, 0, 0, 0) 50%);
-        background-size: 4px 4px;
     }
     .main-title {
         font-family: 'Orbitron', sans-serif !important;
-        font-size: 34px !important;
+        font-size: 32px !important;
         font-weight: 700 !important;
-        letter-spacing: 4px;
+        letter-spacing: 3px;
         color: #00FF66 !important;
-        text-shadow: 0 0 15px rgba(0, 255, 102, 0.8);
+        text-shadow: 0 0 15px rgba(0, 255, 102, 0.7);
         margin: 0;
     }
     .sub-title {
         font-family: 'Orbitron', sans-serif !important;
-        font-size: 13px !important;
-        letter-spacing: 6px;
+        font-size: 12px !important;
+        letter-spacing: 5px;
         color: #FFFFFF !important;
-        margin-top: 8px;
+        margin-top: 6px;
         text-transform: uppercase;
         opacity: 0.8;
     }
 
-    /* Fixed Parameter Grid Cards */
-    .metric-card {
-        background: #0E1112;
-        border: 1px solid #1C2421;
+    /* Lateral Table Layout Framework */
+    .lateral-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 12px;
+        margin-bottom: 15px;
+    }
+    .lateral-cell {
+        background: #0F1214;
+        border: 1px solid #1F2A25;
         border-radius: 4px;
-        padding: 12px;
-        text-align: center;
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
-        transition: all 0.3s ease;
+        padding: 12px 15px;
+        width: 20%;
+        vertical-align: top;
+        box-shadow: inset 0 0 12px rgba(0,0,0,0.9);
+        transition: all 0.25s ease;
     }
-    .metric-card:hover {
+    .lateral-cell:hover {
         border-color: #00FF66;
-        box-shadow: 0 0 12px rgba(0, 255, 102, 0.15);
+        box-shadow: 0 0 15px rgba(0, 255, 102, 0.15);
     }
-    .metric-label {
-        font-size: 10px !important;
+    .cell-label {
+        font-size: 11px !important;
         color: #8A9A92 !important;
         text-transform: uppercase;
+        font-weight: bold;
         letter-spacing: 1px;
-        margin-bottom: 4px;
     }
-    .metric-value {
-        font-size: 18px !important;
+    .cell-value {
+        font-size: 19px !important;
         font-weight: bold !important;
         color: #00FF66 !important;
         font-family: 'Orbitron', sans-serif !important;
+        margin: 4px 0;
         text-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
     }
+    .cell-desc {
+        font-size: 10px !important;
+        color: #FF3333 !important;
+        font-weight: bold;
+        line-height: 1.2;
+        text-shadow: 0 0 6px rgba(255, 51, 51, 0.3);
+        margin-top: 4px;
+    }
     
-    /* Control Form & Elements Layout styling */
+    /* High-Contrast Supervisor Input Form styling */
     div[data-testid="stForm"] {
-        background-color: #0B0D0E !important;
-        border: 1px solid #1C2421 !important;
+        background-color: #111513 !important; 
+        border: 2px solid #00FF66 !important; 
         border-radius: 6px !important;
-        padding: 16px !important;
+        padding: 18px !important;
+        box-shadow: 0px 4px 20px rgba(0,0,0,0.7) !important;
     }
-    label, p, span { color: #00FF66 !important; }
     
-    /* Input Elements Framework styling */
+    /* Matte Compatible Form Text Labels */
+    div[data-testid="stForm"] label p {
+        color: #FFFFFF !important;
+        font-weight: bold !important;
+        font-size: 12px !important;
+        letter-spacing: 1px;
+    }
+    
+    /* Input Elements styling */
     .stSelectbox div[data-baseweb="select"], .stNumberInput input {
-        background-color: #121614 !important;
+        background-color: #1A221E !important;
         color: #00FF66 !important;
-        border: 1px solid #24332B !important;
+        border: 1px solid #00FF66 !important;
+        font-weight: bold !important;
     }
     
-    /* Fixed Data Scroll Frame overrides */
-    div[data-testid="stDataFrame"] {
-        border: 1px solid #1C2421;
-        background-color: #0B0D0E;
+    /* High-Contrast Form Action Button */
+    div.stButton > button:first-child { 
+        background-color: #00FF66 !important; 
+        color: #0A0A0C !important; 
+        font-weight: 900 !important; 
+        font-size: 12px !important; 
+        letter-spacing: 1px;
+        border: none !important;
+        width: 100% !important;
+        padding: 10px !important;
+        box-shadow: 0 0 10px rgba(0, 255, 102, 0.4);
     }
+    div.stButton > button:first-child:hover {
+        background-color: #FFFFFF !important;
+        color: #0A0A0C !important;
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+    }
+    
+    .sop-card { 
+        background-color: #161212; 
+        border-left: 3px solid #FF3333; 
+        padding: 10px; 
+        margin-bottom: 12px; 
+        color: #FFFFFF !important;
+    }
+    .desc-text { color: #00FF66 !important; font-style: italic; font-size: 11px; }
     </style>
 """, unsafe_allow_html=True)
 
 # --- ARTISTIC TITLE BACKGROUND LAYOUT BANNER ---
 st.markdown("""
     <div class="factory-banner">
-        <div class="main-title">⚙️ HORIZON ADDIS TYRE S.C. 🔗</div>
+        <div class="main-title">⛓️ HORIZON ADDIS TYRE S.C. ⚙️ 🔗</div>
         <div class="sub-title">Product Industrialization & Quality Assurance — Live SPC Engine</div>
     </div>
 """, unsafe_allow_html=True)
@@ -140,7 +178,8 @@ state_key = f"dataset_{component_size.replace(' ', '_')}"
 if state_key not in st.session_state:
     np.random.seed(42)
     base_data = []
-    for i in range(1, 21):
+    # Initialize with default 15 records to allow room for supervisor inputs up to 20 max.
+    for i in range(1, 16):
         if "750-16" in component_size:
             row_vals = np.random.normal(11.0137, 0.0395, 5)
         else:
@@ -165,6 +204,8 @@ tol_min_val = target + calculated_tolerance
 
 # Data Core Calculations
 df = st.session_state[state_key].copy()
+current_subgroups = len(df)
+
 df['Mean'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].mean(axis=1)
 df['Range'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].max(axis=1) - df[['X1', 'X2', 'X3', 'X4', 'X5']].min(axis=1)
 
@@ -188,32 +229,94 @@ gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0
 
 st.markdown("---")
 
-# --- PANEL 2: RAW NUMERICAL GREEN METRICS PANEL (NO EXTRA COMPONENT LABELS) ---
-st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 LIVE PROCESS SUMMARY PARAMETERS</p>", unsafe_allow_html=True)
-r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
-r2_c1, r2_c2, r2_c3, r2_c4, r2_c5 = st.columns(5)
-r3_c1, r3_c2, r3_c3, r3_c4, r3_c5 = st.columns(5)
+# --- PANEL 2: LATERAL FORM LAYOUT MATRIX (3 ROWS x 5 COLUMNS) ---
+st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 LIVE PROCESS SUMMARY PARAMETERS Matrix</p>", unsafe_allow_html=True)
 
-# Row 1 Render
-r1_c1.markdown(f'<div class="metric-card"><div class="metric-label">Target Center</div><div class="metric-value">{target:.4f}</div></div>', unsafe_allow_html=True)
-r1_c2.markdown(f'<div class="metric-card"><div class="metric-label">USL</div><div class="metric-value">{usl:.4f}</div></div>', unsafe_allow_html=True)
-r1_c3.markdown(f'<div class="metric-card"><div class="metric-label">LSL</div><div class="metric-value">{lsl:.4f}</div></div>', unsafe_allow_html=True)
-r1_c4.markdown(f'<div class="metric-card"><div class="metric-label">Range Mean (R̄)</div><div class="metric-value">{average_range:.4f}</div></div>', unsafe_allow_html=True)
-r1_c5.markdown(f'<div class="metric-card"><div class="metric-label">Total Observations</div><div class="metric-value">{total_obs}</div></div>', unsafe_allow_html=True)
-
-# Row 2 Render
-r2_c1.markdown(f'<div class="metric-card"><div class="metric-label">Grand Mean (X̄̄)</div><div class="metric-value">{grand_mean:.4f}</div></div>', unsafe_allow_html=True)
-r2_c2.markdown(f'<div class="metric-card"><div class="metric-label">Gen. Movement</div><div class="metric-value">{gen_movement:.4f}</div></div>', unsafe_allow_html=True)
-r2_c3.markdown(f'<div class="metric-card"><div class="metric-label">Span Total</div><div class="metric-value">{span_obs:.4f}</div></div>', unsafe_allow_html=True)
-r2_c4.markdown(f'<div class="metric-card"><div class="metric-label">Grand Median</div><div class="metric-value">{grand_median:.4f}</div></div>', unsafe_allow_html=True)
-r2_c5.markdown(f'<div class="metric-card"><div class="metric-label">Obs Variance</div><div class="metric-value">{variance_obs:.6f}</div></div>', unsafe_allow_html=True)
-
-# Row 3 Render
-r3_c1.markdown(f'<div class="metric-card"><div class="metric-label">Obs Max Value</div><div class="metric-value">{obs_max:.4f}</div></div>', unsafe_allow_html=True)
-r3_c2.markdown(f'<div class="metric-card"><div class="metric-label">Obs Min Value</div><div class="metric-value">{obs_min:.4f}</div></div>', unsafe_allow_html=True)
-r3_c3.markdown(f'<div class="metric-card"><div class="metric-label">Standard Dev (σ)</div><div class="metric-value">{std_dev:.4f}</div></div>', unsafe_allow_html=True)
-r3_c4.markdown(f'<div class="metric-card"><div class="metric-label">X̄ UCL / LCL</div><div class="metric-value">{ucl_x:.4f} / {lcl_x:.4f}</div></div>', unsafe_allow_html=True)
-r3_c5.markdown(f'<div class="metric-card"><div class="metric-label">R UCL / LCL</div><div class="metric-value">{ucl_r:.4f} / {lcl_r:.4f}</div></div>', unsafe_allow_html=True)
+st.markdown(f"""
+<table class="lateral-table">
+    <tr>
+        <td class="lateral-cell">
+            <div class="cell-label">Target Center</div>
+            <div class="cell-value">{target:.4f}</div>
+            <div class="cell-desc">A. Nominal design center weight for product blueprint accuracy.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">USL</div>
+            <div class="cell-value">{usl:.4f}</div>
+            <div class="cell-desc">B. Upper Spec Limit. Absolute max value allowed by PI & QA.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">LSL</div>
+            <div class="cell-value">{lsl:.4f}</div>
+            <div class="cell-desc">C. Lower Spec Limit. Absolute min value allowed before scrap.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Range Mean (R̄)</div>
+            <div class="cell-value">{average_range:.4f}</div>
+            <div class="cell-desc">D. Average internal subgroup spread (Max - Min variance index).</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Total Observations</div>
+            <div class="cell-value">{total_obs} / 100</div>
+            <div class="cell-desc">E. Combined count of individual measurement entries recorded.</div>
+        </td>
+    </tr>
+    <tr>
+        <td class="lateral-cell">
+            <div class="cell-label">Grand Mean (X̄̄)</div>
+            <div class="cell-value">{grand_mean:.4f}</div>
+            <div class="cell-desc">F. Double bar process center weight across all recorded data.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Gen. Movement</div>
+            <div class="cell-value">{gen_movement:.4f}</div>
+            <div class="cell-desc">G. Stepwise standard error change value between subgroups.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Span Total</div>
+            <div class="cell-value">{span_obs:.4f}</div>
+            <div class="cell-desc">H. Absolute width between single highest and lowest point.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Grand Median</div>
+            <div class="cell-value">{grand_median:.4f}</div>
+            <div class="cell-desc">I. Midpoint value splitting the sorted observation array.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Obs Variance</div>
+            <div class="cell-value">{variance_obs:.6f}</div>
+            <div class="cell-desc">J. Statistical variance (Sigma squared) of all active points.</div>
+        </td>
+    </tr>
+    <tr>
+        <td class="lateral-cell">
+            <div class="cell-label">Obs Max Value</div>
+            <div class="cell-value">{obs_max:.4f}</div>
+            <div class="cell-desc">K. Highest single raw component measurement found.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Obs Min Value</div>
+            <div class="cell-value">{obs_min:.4f}</div>
+            <div class="cell-desc">L. Lowest single raw component measurement found.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">Standard Dev (σ)</div>
+            <div class="cell-value">{std_dev:.4f}</div>
+            <div class="cell-desc">M. Estimated process sigma computed via Shewhart R̄/d2 formula.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">X̄ UCL / LCL</div>
+            <div class="cell-value">{ucl_x:.4f} / {lcl_x:.4f}</div>
+            <div class="cell-desc">N. Shewhart control boundaries for subgroup averages.</div>
+        </td>
+        <td class="lateral-cell">
+            <div class="cell-label">R UCL / LCL</div>
+            <div class="cell-value">{ucl_r:.4f} / {lcl_r:.4f}</div>
+            <div class="cell-desc">O. Upper variability boundaries tracking machine stability.</div>
+        </td>
+    </tr>
+</table>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -222,27 +325,35 @@ split_col1, split_col2 = st.columns([1.1, 1.9])
 
 with split_col1:
     st.markdown(f"<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📥 LIVE SUBGROUP DATASTREAM ENTRY</p>", unsafe_allow_html=True)
-    st.markdown("<div class='sop-card'><b>📋 SOP:</b> Record 5 batch measurements on scale, execute submit entry button below.</div>", unsafe_allow_html=True)
     
-    with st.form(key=f"form_{state_key}", clear_on_submit=True):
-        next_id = int(df['Sample'].max() + 1)
-        st.markdown(f"**Target Sample Sequential Index:** `Subgroup #{next_id}`")
-        v1 = st.number_input("Sub-Sample X1", value=float(df.iloc[-1]['X1']), format="%.4f", key=f"x1_{state_key}")
-        v2 = st.number_input("Sub-Sample X2", value=float(df.iloc[-1]['X2']), format="%.4f", key=f"x2_{state_key}")
-        v3 = st.number_input("Sub-Sample X3", value=float(df.iloc[-1]['X3']), format="%.4f", key=f"x3_{state_key}")
-        v4 = st.number_input("Sub-Sample X4", value=float(df.iloc[-1]['X4']), format="%.4f", key=f"x4_{state_key}")
-        v5 = st.number_input("Sub-Sample X5", value=float(df.iloc[-1]['X5']), format="%.4f", key=f"x5_{state_key}")
-        
-        if st.form_submit_button(label="⚡ Append Subgroup to Engine Base"):
-            new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
-            st.session_state[state_key] = pd.concat([st.session_state[state_key], new_row], ignore_index=True)
+    # 20-Subgroup Lock Check Logic
+    if current_subgroups >= 20:
+        st.error(f"🛑 MAXIMUM CAP REACHED: Engine contains {current_subgroups} Subgroups ({total_obs} samples). Data entry is closed to preserve the 100-sample limit standard.")
+        if st.button("🔄 Reset Dataset to Baseline"):
+            del st.session_state[state_key]
             st.rerun()
+    else:
+        st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 batch measurements on scale, execute submit entry button below. Total Subgroups: <b>{current_subgroups}/20</b></div>", unsafe_allow_html=True)
+        
+        with st.form(key=f"form_{state_key}", clear_on_submit=True):
+            next_id = current_subgroups + 1
+            st.markdown(f"<span style='color:#FFFFFF !important; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</span>", unsafe_allow_html=True)
+            v1 = st.number_input("Sub-Sample Measurement X1", value=float(df.iloc[-1]['X1']), format="%.4f", key=f"x1_{state_key}")
+            v2 = st.number_input("Sub-Sample Measurement X2", value=float(df.iloc[-1]['X2']), format="%.4f", key=f"x2_{state_key}")
+            v3 = st.number_input("Sub-Sample Measurement X3", value=float(df.iloc[-1]['X3']), format="%.4f", key=f"x3_{state_key}")
+            v4 = st.number_input("Sub-Sample Measurement X4", value=float(df.iloc[-1]['X4']), format="%.4f", key=f"x4_{state_key}")
+            v5 = st.number_input("Sub-Sample Measurement X5", value=float(df.iloc[-1]['X5']), format="%.4f", key=f"x5_{state_key}")
+            
+            if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
+                new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
+                st.session_state[state_key] = pd.concat([st.session_state[state_key], new_row], ignore_index=True)
+                st.rerun()
 
 with split_col2:
     st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 UNBROKEN ACTIVE DATALIST STORAGE FRAME</p>", unsafe_allow_html=True)
     st.dataframe(
         df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
-        height=250,
+        height=270,
         use_container_width=True
     )
 
@@ -258,7 +369,7 @@ with g_col1:
     f_x.add_shape(type="line", x0=df['Sample'].min(), y0=grand_mean, x1=df['Sample'].max(), y1=grand_mean, line=dict(color="white", width=1.5))
     f_x.add_shape(type="line", x0=df['Sample'].min(), y0=ucl_x, x1=df['Sample'].max(), y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
     f_x.add_shape(type="line", x0=df['Sample'].min(), y0=lcl_x, x1=df['Sample'].max(), y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
-    f_x.update_layout(title="<b>X-Bar Process Control Chart</b>", paper_bgcolor='#08080A', plot_bgcolor='#0E1112', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10))
+    f_x.update_layout(title="<b>X-Bar Process Control Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10))
     st.plotly_chart(f_x, use_container_width=True)
 
 with g_col2:
@@ -266,7 +377,7 @@ with g_col2:
     f_r.add_trace(go.Scatter(x=df['Sample'], y=df['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
     f_r.add_shape(type="line", x0=df['Sample'].min(), y0=average_range, x1=df['Sample'].max(), y1=average_range, line=dict(color="white", width=1.5))
     f_r.add_shape(type="line", x0=df['Sample'].min(), y0=ucl_r, x1=df['Sample'].max(), y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
-    f_r.update_layout(title="<b>R-Bar Range Variability Chart</b>", paper_bgcolor='#08080A', plot_bgcolor='#0E1112', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10))
+    f_r.update_layout(title="<b>R-Bar Range Variability Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10))
     st.plotly_chart(f_r, use_container_width=True)
 
 with g_col3:
@@ -279,8 +390,8 @@ with g_col3:
     f_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     f_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
     f_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
-    f_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#FF4B4B", line_width=1.5)
-    f_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#FF4B4B", line_width=1.5)
+    f_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
+    f_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
     
-    f_s.update_layout(title="<b>Process Curve vs Specs & Tol</b>", paper_bgcolor='#08080A', plot_bgcolor='#0E1112', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
+    f_s.update_layout(title="<b>Process Curve vs Specs & Tol</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
     st.plotly_chart(f_s, use_container_width=True)
