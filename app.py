@@ -32,30 +32,57 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🏭 HORIZON ADDIS TYRE S.C.")
-st.markdown("### Product Industrialization & Quality Assurance — Live Engine")
+st.markdown("### Product Industrialization & Quality Assurance — Live SPC Engine")
 st.markdown("---")
 
-# --- DATA STORAGE SEED ARRANGEMENT ---
-if 'dataset' not in st.session_state:
-    # 20 Subgroups from your 750-16 Treadweight baseline log array
+# --- ACTIVE COMPONENT SELECTION MATRIX ---
+col_sel1, col_sel2 = st.columns([2, 1])
+with col_sel1:
+    component_size = st.selectbox(
+        "📂 Active Component Model & Dimension Selector",
+        ["750-16 HT-99 Treadweight", "400-8 HT-60 Treadweight", "Custom Specification Size Sheet"]
+    )
+
+# Baseline specifications setup matching selected profile
+if "750-16" in component_size:
+    default_target, default_usl, default_lsl = 11.1600, 11.4948, 10.8252
+elif "400-8" in component_size:
+    default_target, default_usl, default_lsl = 2.0200, 2.0806, 1.9594
+else:
+    default_target, default_usl, default_lsl = 10.0000, 10.3000, 9.7000
+
+with col_sel2:
+    tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
+
+# --- DATA STORAGE MANAGEMENT Deck ---
+# Ensure database matches chosen structural size profile
+state_key = f"dataset_{component_size.replace(' ', '_')}"
+if state_key not in st.session_state:
     np.random.seed(42)
     base_data = []
     for i in range(1, 21):
-        row_vals = np.random.normal(11.0137, 0.0395, 5)
+        # Center values dynamically generated around targeted parameter profiles
+        row_vals = np.random.normal(default_target - 0.146, (default_target * 0.0035), 5)
         base_data.append([i] + list(row_vals))
-    st.session_state.dataset = pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
+    st.session_state[state_key] = pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# --- SIDEBAR CONSTANTS ASSIGNMENT PANEL ---
-st.sidebar.header("📋 Target Constants")
-usl = st.sidebar.number_input("Upper Spec (USL)", value=11.4948, format="%.4f")
-target = st.sidebar.number_input("Target Value", value=11.1600, format="%.4f")
-lsl = st.sidebar.number_input("Lower Spec (LSL)", value=10.8252, format="%.4f")
-d2 = st.sidebar.number_input("Shewhart d2", value=2.3330, format="%.4f")
-A2 = st.sidebar.number_input("Shewhart A2", value=0.5770, format="%.4f")
-D4 = st.sidebar.number_input("Shewhart D4", value=2.1150, format="%.4f")
+# --- PANEL 1: ENGINEERING CONFIGURATION VARIABLES BAR (TOP) ---
+st.markdown("### 🛠️ Process Specification Standards & Formulas")
+c1, c2, c3, c4, c5, c6 = st.columns(6)
+with c1: usl = st.number_input("USL (Upper Spec)", value=default_usl, format="%.4f")
+with c2: target = st.number_input("Target Value", value=default_target, format="%.4f")
+with c3: lsl = st.number_input("LSL (Lower Spec)", value=default_lsl, format="%.4f")
+with c4: d2 = st.number_input("Shewhart d2", value=2.3330, format="%.4f")
+with c5: A2 = st.number_input("Shewhart A2", value=0.5770, format="%.4f")
+with c6: D4 = st.number_input("Shewhart D4", value=2.1150, format="%.4f")
 
-# --- MATH CORE RE-CALCULATION VECTOR ENGINE ---
-df = st.session_state.dataset.copy()
+# Interactive Tolerance Calculations requested: Max value = Spec - Tol, Min value = Spec + Tol
+calculated_tolerance = target * (tolerance_pct / 100.0)
+tol_max_val = target - calculated_tolerance
+tol_min_val = target + calculated_tolerance
+
+# Data Math Vector Processing
+df = st.session_state[state_key].copy()
 df['Mean'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].mean(axis=1)
 df['Range'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].max(axis=1) - df[['X1', 'X2', 'X3', 'X4', 'X5']].min(axis=1)
 
@@ -76,10 +103,11 @@ ucl_x = grand_mean + (A2 * average_range)
 lcl_x = grand_mean - (A2 * average_range)
 ucl_r = D4 * average_range
 lcl_r = 0.0
-
 gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0437
 
-# --- VISUAL PRESENTATION MATRIX: DENSE 15-METRIC HEADBOARD PANEL ---
+st.markdown("---")
+
+# --- PANEL 2: HIGH-CONTRAST METRICS INDICATOR MATRIX ---
 st.markdown("### 📊 Comprehensive Process Parameter Status Board")
 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
 r2_c1, r2_c2, r2_c3, r2_c4, r2_c5 = st.columns(5)
@@ -112,7 +140,7 @@ st.markdown("---")
 split_col1, split_col2 = st.columns([1.1, 1.9])
 
 with split_col1:
-    st.markdown("### 📥 Live Entry Stream Card")
+    st.markdown(f"### 📥 Live Entry Stream Card ({component_size.split(' ')[0]})")
     with st.form(key='horizontal_entry_deck', clear_on_submit=True):
         next_id = int(df['Sample'].max() + 1)
         st.markdown(f"**Target Sample Sequential Index:** `{next_id}`")
@@ -124,7 +152,7 @@ with split_col1:
         
         if st.form_submit_button(label="⚡ Append Subgroup to Engine Base"):
             new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
-            st.session_state.dataset = pd.concat([st.session_state.dataset, new_row], ignore_index=True)
+            st.session_state[state_key] = pd.concat([st.session_state[state_key], new_row], ignore_index=True)
             st.rerun()
 
 with split_col2:
@@ -161,11 +189,18 @@ with g_col2:
 with g_col3:
     f_s = go.Figure()
     f_s.add_trace(go.Histogram(x=flattened, histnorm='probability density', marker_color='#444444', opacity=0.7))
-    xs = np.linspace(min(flattened.min(), lsl), max(flattened.max(), usl), 100)
+    xs = np.linspace(min(flattened.min(), lsl, tol_max_val), max(flattened.max(), usl, tol_min_val), 100)
     ys = norm.pdf(xs, grand_mean, std_dev)
-    f_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFA500', width=1.5)))
+    f_s.add_trace(go.Scatter(xs, ys, mode='lines', line=dict(color='#FFA500', width=1.5)))
+    
+    # Specification Limits
     f_s.add_vline(x=lsl, line_dash="dot", line_color="red")
     f_s.add_vline(x=usl, line_dash="dot", line_color="red")
     f_s.add_vline(x=target, line_color="green")
-    f_s.update_layout(title="<b>Process Curve vs Specs</b>", paper_bgcolor='#121212', plot_bgcolor='#1E1E1E', font_color="white", height=230, margin=dict(l=10, r=10, t=30, b=10), showlegend=False)
+    
+    # Interactive Tolerance Limits requested
+    f_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#00FF00")
+    f_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#00FF00")
+    
+    f_s.update_layout(title="<b>Process Curve vs Specs & Tol</b>", paper_bgcolor='#121212', plot_bgcolor='#1E1E1E', font_color="white", height=230, margin=dict(l=10, r=10, t=30, b=10), showlegend=False)
     st.plotly_chart(f_s, use_container_width=True)
