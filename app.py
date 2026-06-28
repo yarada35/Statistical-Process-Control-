@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from scipy.stats import norm
 
-# --- INTERFACE MASTER STYLE MATRIX ---
+# --- INTERFACE MASTER STYLE MATRIX (COMPACT MONITOR SPEC) ---
 st.set_page_config(page_title="Horizon Addis Tyre - SPC Center", layout="wide")
 
 st.markdown("""
@@ -43,33 +43,34 @@ col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
-        ["750-16 HT-99 Treadweight", "400-8 HT-60 Treadweight", "Custom Specification Size Sheet"]
+        ["750-16 HT-99 Treadweight", "400-8 HT-60 Treadweight"]
     )
     st.markdown("<div class='desc-text'>👉 SUPERVISOR: Choose the active tire size currently running on the extrusion line. This loads the correct specification base.</div>", unsafe_allow_html=True)
 
-# Baseline specifications setup matching selected profile
+# Assign structural profiles precisely based on your verified baseline files
 if "750-16" in component_size:
     default_target, default_usl, default_lsl = 11.1600, 11.4948, 10.8252
-elif "400-8" in component_size:
-    default_target, default_usl, default_lsl = 2.0200, 2.0806, 1.9594
 else:
-    default_target, default_usl, default_lsl = 10.0000, 10.3000, 9.7000
+    default_target, default_usl, default_lsl = 2.0200, 2.0806, 1.9594
 
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
     st.markdown("<div class='desc-text'>👉 SPEC: Allowed customer margin percentage (Standard is 3.0%). Controls the green threshold bands.</div>", unsafe_allow_html=True)
 
-# --- DATA STORAGE MANAGEMENT Deck ---
+# --- DYNAMIC STRUCTURAL SEED DECKS ---
 state_key = f"dataset_{component_size.replace(' ', '_')}"
 if state_key not in st.session_state:
     np.random.seed(42)
     base_data = []
     for i in range(1, 21):
-        row_vals = np.random.normal(default_target - 0.146, (default_target * 0.0035), 5)
+        if "750-16" in component_size:
+            row_vals = np.random.normal(11.0137, 0.0395, 5)
+        else:
+            row_vals = np.random.normal(1.9990, 0.0216, 5)
         base_data.append([i] + list(row_vals))
     st.session_state[state_key] = pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# --- PANEL 1: ENGINEERING CONFIGURATION VARIABLES BAR (TOP) ---
+# --- PANEL 1: SPECIFICATION CONSTANTS BAR ---
 st.markdown("### 🛠️ Process Specification Standards & Constants")
 c1, c2, c3, c4, c5, c6 = st.columns(6)
 with c1: usl = st.number_input("USL (Upper Spec)", value=default_usl, format="%.4f")
@@ -79,12 +80,12 @@ with c4: d2 = st.number_input("Shewhart d2", value=2.3330, format="%.4f")
 with c5: A2 = st.number_input("Shewhart A2", value=0.5770, format="%.4f")
 with c6: D4 = st.number_input("Shewhart D4", value=2.1150, format="%.4f")
 
-# Interactive Tolerance Calculations: Max value = Spec - Tol, Min value = Spec + Tol
+# Dynamic Tolerance Formula Math
 calculated_tolerance = target * (tolerance_pct / 100.0)
 tol_max_val = target - calculated_tolerance
 tol_min_val = target + calculated_tolerance
 
-# Data Math Vector Processing
+# Data Core Calculations
 df = st.session_state[state_key].copy()
 df['Mean'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].mean(axis=1)
 df['Range'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].max(axis=1) - df[['X1', 'X2', 'X3', 'X4', 'X5']].min(axis=1)
@@ -109,7 +110,7 @@ gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0
 
 st.markdown("---")
 
-# --- PANEL 2: HIGH-CONTRAST METRICS INDICATOR MATRIX WITH LETTER DESCRIPTIONS ---
+# --- PANEL 2: HIGH-CONTRAST METRICS INDICATOR BOARD ---
 st.markdown("### 📊 Comprehensive Process Parameter Status Board")
 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
 r2_c1, r2_c2, r2_c3, r2_c4, r2_c5 = st.columns(5)
@@ -143,24 +144,17 @@ split_col1, split_col2 = st.columns([1.1, 1.9])
 
 with split_col1:
     st.markdown(f"### 📥 Live Entry Stream Card ({component_size.split(' ')[0]})")
+    st.markdown("<div class='sop-card'><b>📋 SUPERVISOR ENTRY SOP:</b> Measure 5 sample points on the scale, enter below, and submit.</div>", unsafe_allow_html=True)
     
-    st.markdown("""
-    <div class='sop-card'>
-        <b>📋 SUPERVISOR ENTRY SOP:</b><br>
-        1. Measure 5 component points from the extrusion strip batch.<br>
-        2. Input values sequentially into fields X1 through X5.<br>
-        3. Press the red submission button to update charts live.
-    </div>
-    """, unsafe_allow_html=True)
-    
-    with st.form(key='horizontal_entry_deck', clear_on_submit=True):
+    # Notice the explicit dynamic key assigned to form inputs to prevent page blinding on swap
+    with st.form(key=f"form_{state_key}", clear_on_submit=True):
         next_id = int(df['Sample'].max() + 1)
         st.markdown(f"**Target Sample Sequential Index:** `Subgroup #{next_id}`")
-        v1 = st.number_input("Sub-Sample X1", value=float(df.iloc[-1]['X1']), format="%.4f")
-        v2 = st.number_input("Sub-Sample X2", value=float(df.iloc[-1]['X2']), format="%.4f")
-        v3 = st.number_input("Sub-Sample X3", value=float(df.iloc[-1]['X3']), format="%.4f")
-        v4 = st.number_input("Sub-Sample X4", value=float(df.iloc[-1]['X4']), format="%.4f")
-        v5 = st.number_input("Sub-Sample X5", value=float(df.iloc[-1]['X5']), format="%.4f")
+        v1 = st.number_input("Sub-Sample X1", value=float(df.iloc[-1]['X1']), format="%.4f", key=f"x1_{state_key}")
+        v2 = st.number_input("Sub-Sample X2", value=float(df.iloc[-1]['X2']), format="%.4f", key=f"x2_{state_key}")
+        v3 = st.number_input("Sub-Sample X3", value=float(df.iloc[-1]['X3']), format="%.4f", key=f"x3_{state_key}")
+        v4 = st.number_input("Sub-Sample X4", value=float(df.iloc[-1]['X4']), format="%.4f", key=f"x4_{state_key}")
+        v5 = st.number_input("Sub-Sample X5", value=float(df.iloc[-1]['X5']), format="%.4f", key=f"x5_{state_key}")
         
         if st.form_submit_button(label="⚡ Append Subgroup to Engine Base"):
             new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
@@ -172,7 +166,7 @@ with split_col2:
     st.markdown("<div class='desc-text' style='margin-bottom: 4px;'>👉 NOTE: This table maintains a record of previous entries. Verify row outputs here.</div>", unsafe_allow_html=True)
     st.dataframe(
         df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
-        height=265,
+        height=245,
         use_container_width=True
     )
 
@@ -206,12 +200,9 @@ with g_col3:
     ys = norm.pdf(xs, grand_mean, std_dev)
     f_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFA500', width=1.5)))
     
-    # Specification Limits
     f_s.add_vline(x=lsl, line_dash="dot", line_color="red")
     f_s.add_vline(x=usl, line_dash="dot", line_color="red")
     f_s.add_vline(x=target, line_color="green")
-    
-    # Tolerance Limits
     f_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#00FF00")
     f_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#00FF00")
     
