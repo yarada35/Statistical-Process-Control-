@@ -120,9 +120,18 @@ st.markdown("""
     .print-frame {
         background-color: #050507 !important;
         border: 2px dashed #FF3333 !important;
-        padding: 20px;
+        padding: 25px;
+        border-radius: 6px;
+        margin-top: 40px;
+    }
+    
+    .capability-metric {
+        background: #0E1112;
+        border: 1px solid #FF3333;
         border-radius: 4px;
-        margin-top: 30px;
+        padding: 10px;
+        text-align: center;
+        margin-bottom: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -155,7 +164,6 @@ with col_sel2:
 def generate_fresh_baseline(size_label):
     np.random.seed(42)
     base_data = []
-    # Generates standard historical rows from Subgroup 1 to 14
     for i in range(1, 15):
         if "750-16" in size_label:
             row_vals = np.random.normal(11.0137, 0.0395, 5)
@@ -203,12 +211,45 @@ variance_obs = float(np.var(flattened))
 obs_max = float(flattened.max())
 obs_min = float(flattened.min())
 std_dev = average_range / d2
+overall_std = float(np.std(flattened, ddof=1))
 
 ucl_x = grand_mean + (A2 * average_range)
 lcl_x = grand_mean - (A2 * average_range)
 ucl_r = D4 * average_range
 lcl_r = 0.0
 gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0437
+
+# --- HELPER: GENERATE PROCESS VISUAL OBJECTS ---
+def build_plots(data_frame, flat_array):
+    # X-Bar
+    fig_x = go.Figure()
+    fig_x.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
+    fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=grand_mean, x1=data_frame['Sample'].max(), y1=grand_mean, line=dict(color="white", width=1.5))
+    fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=ucl_x, x1=data_frame['Sample'].max(), y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
+    fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=lcl_x, x1=data_frame['Sample'].max(), y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
+    fig_x.update_layout(title="<b>X-Bar Process Control Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10))
+    
+    # R-Bar
+    fig_r = go.Figure()
+    fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
+    fig_r.add_shape(type="line", x0=data_frame['Sample'].min(), y0=average_range, x1=data_frame['Sample'].max(), y1=average_range, line=dict(color="white", width=1.5))
+    fig_r.add_shape(type="line", x0=data_frame['Sample'].min(), y0=ucl_r, x1=data_frame['Sample'].max(), y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
+    fig_r.update_layout(title="<b>R-Bar Range Variability Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10))
+    
+    # Histogram Curve
+    fig_s = go.Figure()
+    fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
+    xs = np.linspace(min(flat_array.min(), lsl, tol_max_val), max(flat_array.max(), usl, tol_min_val), 100)
+    ys = norm.pdf(xs, grand_mean, std_dev)
+    fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
+    fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
+    fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
+    fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
+    fig_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
+    fig_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
+    fig_s.update_layout(title="<b>Process Curve vs Specs & Tol</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
+    
+    return fig_x, fig_r, fig_s
 
 # --- PANEL 2: LATERAL MATRIX DISPLAY ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 LIVE PROCESS SUMMARY PARAMETERS MATRIX</p>", unsafe_allow_html=True)
@@ -249,9 +290,24 @@ with split_col1:
     if current_subgroups >= 20:
         st.error(f"🛑 MAXIMUM CAP REACHED: Engine contains {current_subgroups} Subgroups ({total_obs} samples). Entry closed.")
         
-        # Save complete layout array to print ledger session variable before wiping
         if st.button("💾 Archive, Print and Reset to Index #15"):
-            st.session_state[archive_key] = df.copy()
+            # Execute and preserve Capability Study before clearing active state
+            cp = (usl - lsl) / (6 * std_dev) if std_dev > 0 else 0
+            cpu = (usl - grand_mean) / (3 * std_dev) if std_dev > 0 else 0
+            cpl = (grand_mean - lsl) / (3 * std_dev) if std_dev > 0 else 0
+            cpk = min(cpu, cpl)
+            
+            pp = (usl - lsl) / (6 * overall_std) if overall_std > 0 else 0
+            ppu = (usl - grand_mean) / (3 * overall_std) if overall_std > 0 else 0
+            ppl = (grand_mean - lsl) / (3 * overall_std) if overall_std > 0 else 0
+            ppk = min(ppu, ppl)
+            
+            st.session_state[archive_key] = {
+                'df': df.copy(),
+                'flat': flattened.copy(),
+                'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
+            }
+            # Hard reset back to 14 standard baseline entries (causing the next row index to sit at exactly #15)
             st.session_state[state_key] = generate_fresh_baseline(component_size)
             st.rerun()
     else:
@@ -282,46 +338,54 @@ st.markdown("---")
 
 # --- PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS (LOCKED VIEWMODE)</p>", unsafe_allow_html=True)
-g_col1, g_col2, g_col3 = st.columns([1.4, 1.4, 1.2])
+g1, g2, g3 = st.columns([1.4, 1.4, 1.2])
+fx, fr, fs = build_plots(df, flattened)
+g1.plotly_chart(fx, use_container_width=True, config={'staticPlot': True})
+g2.plotly_chart(fr, use_container_width=True, config={'staticPlot': True})
+g3.plotly_chart(fs, use_container_width=True, config={'staticPlot': True})
 
-with g_col1:
-    f_x = go.Figure()
-    f_x.add_trace(go.Scatter(x=df['Sample'], y=df['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
-    f_x.add_shape(type="line", x0=df['Sample'].min(), y0=grand_mean, x1=df['Sample'].max(), y1=grand_mean, line=dict(color="white", width=1.5))
-    f_x.add_shape(type="line", x0=df['Sample'].min(), y0=ucl_x, x1=df['Sample'].max(), y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
-    f_x.add_shape(type="line", x0=df['Sample'].min(), y0=lcl_x, x1=df['Sample'].max(), y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
-    f_x.update_layout(title="<b>X-Bar Process Control Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10))
-    st.plotly_chart(f_x, use_container_width=True, config={'staticPlot': True})
-
-with g_col2:
-    f_r = go.Figure()
-    f_r.add_trace(go.Scatter(x=df['Sample'], y=df['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
-    f_r.add_shape(type="line", x0=df['Sample'].min(), y0=average_range, x1=df['Sample'].max(), y1=average_range, line=dict(color="white", width=1.5))
-    f_r.add_shape(type="line", x0=df['Sample'].min(), y0=ucl_r, x1=df['Sample'].max(), y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
-    f_r.update_layout(title="<b>R-Bar Range Variability Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10))
-    st.plotly_chart(f_r, use_container_width=True, config={'staticPlot': True})
-
-with g_col3:
-    f_s = go.Figure()
-    f_s.add_trace(go.Histogram(x=flattened, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
-    xs = np.linspace(min(flattened.min(), lsl, tol_max_val), max(flattened.max(), usl, tol_min_val), 100)
-    ys = norm.pdf(xs, grand_mean, std_dev)
-    f_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
-    f_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
-    f_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
-    f_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
-    f_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
-    f_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
-    f_s.update_layout(title="<b>Process Curve vs Specs & Tol</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
-    st.plotly_chart(f_s, use_container_width=True, config={'staticPlot': True})
-
-# --- FINAL HISTORICAL RESULTS PRINT ARCHIVER LEDGER ---
+# --- FINAL HISTORICAL RESULTS & PROCESS CAPABILITY STUDY PRINT LEDGER ---
 if archive_key in st.session_state:
+    arch = st.session_state[archive_key]
     st.markdown("<div class='print-frame'>", unsafe_allow_html=True)
-    st.markdown("### 🖨️ FINAL CONSOLIDATED SPECIFICATION REPORT (READY TO PRINT / SHIFT RECONCILIATION)")
-    st.markdown("This section stores your compiled calculation ledger before starting a new run.")
+    st.markdown("## 🖨️ FINAL CONSOLIDATED SPECIFICATION & CAPABILITY REPORT")
+    st.markdown("#### PI & QA Division — Shift Performance Verification Ledger")
+    
+    # Calculate Capability Indexes on Frozen Data
+    m = arch['metrics']
+    
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">POTENTIAL CAPABILITY (Cp)</p><h3 style="color:#00FF66;margin:5px 0;">{m["cp"]:.4f}</h3></div>', unsafe_allow_html=True)
+    mc2.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">MINIMUM PROCESS INDEX (Cpk)</p><h3 style="color:#00FF66;margin:5px 0;">{m["cpk"]:.4f}</h3></div>', unsafe_allow_html=True)
+    mc3.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">TOTAL PERFORMANCE (Pp)</p><h3 style="color:#00FF66;margin:5px 0;">{m["pp"]:.4f}</h3></div>', unsafe_allow_html=True)
+    mc4.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">PERFORMANCE INDEX (Ppk)</p><h3 style="color:#00FF66;margin:5px 0;">{m["ppk"]:.4f}</h3></div>', unsafe_allow_html=True)
+    
+    # Text Analysis Observations
+    st.markdown("#### 📝 CRITICAL QUALITY PERFORMANCE AUDIT OBSERVATIONS:")
+    if m['cpk'] >= 1.33:
+        st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** The extrusion variant dispersion profile sits safely inside specification boundaries. System exhibits complete statistical stability.")
+    elif m['cpk'] >= 1.00:
+        st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** Center shifts detected. Increase close die pressure maintenance monitoring loops immediately.")
+    else:
+        st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT ($C_{{pk}}$ = {m['cpk']:.4f}).** Variance profile exceeds standard deviation ceiling. Immediate mechanical verification required on head temperatures.")
+        
+    st.markdown("---")
+    
+    # Snapshot Dataframe Table Display
+    st.markdown("**Archived Raw Data and Computed Limits:**")
     st.dataframe(
-        st.session_state[archive_key].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
+        arch['df'].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
         use_container_width=True
     )
+    
+    st.markdown("---")
+    
+    # Snapshot Plots Display
+    st.markdown("**Archived Analytical Control Graphs:**")
+    p1, p2, p3 = st.columns([1.4, 1.4, 1.2])
+    afx, afr, afs = build_plots(arch['df'], arch['flat'])
+    p1.plotly_chart(afx, use_container_width=True, config={'staticPlot': True})
+    p2.plotly_chart(afr, use_container_width=True, config={'staticPlot': True})
+    p3.plotly_chart(afs, use_container_width=True, config={'staticPlot': True})
+    
     st.markdown("</div>", unsafe_allow_html=True)
