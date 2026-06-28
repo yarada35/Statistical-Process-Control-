@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from scipy.stats import norm
+import os
 
 # --- ARCHITECTURAL VISUAL MASTER MATRIX (PREMIUM INDUSTRIAL SPEC) ---
 st.set_page_config(page_title="Horizon Addis Tyre - SPC Center", layout="wide")
@@ -160,11 +161,13 @@ else:
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- INITIAL SEED GENERATOR HELPER ---
+# --- FILE HARDWARE PERSISTENCE CONFIGURATION ---
+clean_name = component_size.replace(' ', '_').replace('-', '_')
+CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
+
 def generate_fresh_baseline(size_label):
     np.random.seed(42)
     base_data = []
-    # Generates only the foundational first sample layout row
     for i in range(1, 2):
         if "750-16" in size_label:
             row_vals = np.random.normal(11.0137, 0.0395, 5)
@@ -173,13 +176,21 @@ def generate_fresh_baseline(size_label):
         base_data.append([i] + list(row_vals))
     return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# --- FORCED PERSISTENCE STATE KEY ASSIGNMENTS ---
-state_key = f"dataset_{component_size.replace(' ', '_')}"
-archive_key = f"archive_{component_size.replace(' ', '_')}"
+# Persistent Storage Initialization Protocol
+if os.path.exists(CSV_FILE_PATH):
+    try:
+        df_active = pd.read_csv(CSV_FILE_PATH)
+    except Exception:
+        df_active = generate_fresh_baseline(component_size)
+        df_active.to_csv(CSV_FILE_PATH, index=False)
+else:
+    df_active = generate_fresh_baseline(component_size)
+    df_active.to_csv(CSV_FILE_PATH, index=False)
 
-# CRITICAL SECURITY FIX: Never overwrite session state data if it already exists
-if state_key not in st.session_state:
-    st.session_state[state_key] = generate_fresh_baseline(component_size)
+# Mirror local session state variable to file contents
+state_key = f"dataset_{clean_name}"
+archive_key = f"archive_{clean_name}"
+st.session_state[state_key] = df_active
 
 # --- PANEL 1: SPECIFICATION CONSTANTS BAR ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ PROCESS SPECIFICATION STANDARDS & CONSTANTS</p>", unsafe_allow_html=True)
@@ -196,7 +207,6 @@ calculated_tolerance = target * (tolerance_pct / 100.0)
 tol_max_val = target - calculated_tolerance
 tol_min_val = target + calculated_tolerance
 
-# Working with the active, uncorrupted master state array
 df = st.session_state[state_key].copy()
 current_subgroups = len(df)
 
@@ -306,23 +316,28 @@ with split_col1:
                 'flat': flattened.copy(),
                 'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
             }
-            # Pure reset protocol back to zero parameters starting from initial Sample #1
-            st.session_state[state_key] = generate_fresh_baseline(component_size)
+            
+            # Reset workflow: Clean the file out back to the default Row #1 pattern
+            df_fresh = generate_fresh_baseline(component_size)
+            df_fresh.to_csv(CSV_FILE_PATH, index=False)
             st.rerun()
     else:
         st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 inputs. Current Batch Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
-        with st.form(key=f"form_{state_key}", clear_on_submit=True):
+        with st.form(key=f"form_{clean_name}", clear_on_submit=True):
             next_id = current_subgroups + 1
             st.markdown(f"<span style='color:#FFFFFF; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</span>", unsafe_allow_html=True)
-            v1 = st.number_input("Sub-Sample Measurement X1", value=float(df.iloc[-1]['X1']), format="%.4f", key=f"x1_{state_key}")
-            v2 = st.number_input("Sub-Sample Measurement X2", value=float(df.iloc[-1]['X2']), format="%.4f", key=f"x2_{state_key}")
-            v3 = st.number_input("Sub-Sample Measurement X3", value=float(df.iloc[-1]['X3']), format="%.4f", key=f"x3_{state_key}")
-            v4 = st.number_input("Sub-Sample Measurement X4", value=float(df.iloc[-1]['X4']), format="%.4f", key=f"x4_{state_key}")
-            v5 = st.number_input("Sub-Sample Measurement X5", value=float(df.iloc[-1]['X5']), format="%.4f", key=f"x5_{state_key}")
+            v1 = st.number_input("Sub-Sample Measurement X1", value=float(df.iloc[-1]['X1']), format="%.4f", key=f"x1_{clean_name}")
+            v2 = st.number_input("Sub-Sample Measurement X2", value=float(df.iloc[-1]['X2']), format="%.4f", key=f"x2_{clean_name}")
+            v3 = st.number_input("Sub-Sample Measurement X3", value=float(df.iloc[-1]['X3']), format="%.4f", key=f"x3_{clean_name}")
+            v4 = st.number_input("Sub-Sample Measurement X4", value=float(df.iloc[-1]['X4']), format="%.4f", key=f"x4_{clean_name}")
+            v5 = st.number_input("Sub-Sample Measurement X5", value=float(df.iloc[-1]['X5']), format="%.4f", key=f"x5_{clean_name}")
             
             if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
                 new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
-                st.session_state[state_key] = pd.concat([st.session_state[state_key], new_row], ignore_index=True)
+                df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
+                
+                # Instantly persist to physical hardware matrix file on disk
+                df_updated.to_csv(CSV_FILE_PATH, index=False)
                 st.rerun()
 
 with split_col2:
