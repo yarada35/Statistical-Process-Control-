@@ -160,11 +160,11 @@ else:
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- INITIAL SEED GENERATOR HELPER (FRESH BATCH TO START FROM SAMPLE 1) ---
+# --- INITIAL SEED GENERATOR HELPER ---
 def generate_fresh_baseline(size_label):
     np.random.seed(42)
     base_data = []
-    # Clean setup initialization starting strictly from Sample index #1
+    # Generates only the foundational first sample layout row
     for i in range(1, 2):
         if "750-16" in size_label:
             row_vals = np.random.normal(11.0137, 0.0395, 5)
@@ -173,10 +173,11 @@ def generate_fresh_baseline(size_label):
         base_data.append([i] + list(row_vals))
     return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# --- STATE SYNCHRONIZATION MATRIX ---
+# --- FORCED PERSISTENCE STATE KEY ASSIGNMENTS ---
 state_key = f"dataset_{component_size.replace(' ', '_')}"
 archive_key = f"archive_{component_size.replace(' ', '_')}"
 
+# CRITICAL SECURITY FIX: Never overwrite session state data if it already exists
 if state_key not in st.session_state:
     st.session_state[state_key] = generate_fresh_baseline(component_size)
 
@@ -195,6 +196,7 @@ calculated_tolerance = target * (tolerance_pct / 100.0)
 tol_max_val = target - calculated_tolerance
 tol_min_val = target + calculated_tolerance
 
+# Working with the active, uncorrupted master state array
 df = st.session_state[state_key].copy()
 current_subgroups = len(df)
 
@@ -222,7 +224,6 @@ gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0
 
 # --- HELPER: GENERATE PROCESS VISUAL OBJECTS ---
 def build_plots(data_frame, flat_array):
-    # X-Bar
     fig_x = go.Figure()
     fig_x.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
     fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=grand_mean, x1=data_frame['Sample'].max(), y1=grand_mean, line=dict(color="white", width=1.5))
@@ -230,14 +231,12 @@ def build_plots(data_frame, flat_array):
     fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=lcl_x, x1=data_frame['Sample'].max(), y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
     fig_x.update_layout(title="<b>X-Bar Process Control Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10))
     
-    # R-Bar
     fig_r = go.Figure()
     fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
     fig_r.add_shape(type="line", x0=data_frame['Sample'].min(), y0=average_range, x1=data_frame['Sample'].max(), y1=average_range, line=dict(color="white", width=1.5))
     fig_r.add_shape(type="line", x0=data_frame['Sample'].min(), y0=ucl_r, x1=data_frame['Sample'].max(), y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
     fig_r.update_layout(title="<b>R-Bar Range Variability Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10))
     
-    # Histogram Curve
     fig_s = go.Figure()
     fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
     xs = np.linspace(min(flat_array.min(), lsl, tol_max_val), max(flat_array.max(), usl, tol_min_val), 100)
@@ -292,7 +291,6 @@ with split_col1:
         st.error(f"🛑 MAXIMUM CAP REACHED: Engine contains {current_subgroups} Subgroups ({total_obs} samples). Entry closed.")
         
         if st.button("💾 Archive, Print and Reset to Sample #1"):
-            # Compute Capability Indexes for Shift Verification snapshot
             cp = (usl - lsl) / (6 * std_dev) if std_dev > 0 else 0
             cpu = (usl - grand_mean) / (3 * std_dev) if std_dev > 0 else 0
             cpl = (grand_mean - lsl) / (3 * std_dev) if std_dev > 0 else 0
