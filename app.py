@@ -116,6 +116,14 @@ st.markdown("""
         padding: 10px; 
         color: #FFFFFF !important;
     }
+
+    .print-frame {
+        background-color: #050507 !important;
+        border: 2px dashed #FF3333 !important;
+        padding: 20px;
+        border-radius: 4px;
+        margin-top: 30px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -143,18 +151,25 @@ else:
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- DYNAMIC STRUCTURAL SEED DECKS ---
-state_key = f"dataset_{component_size.replace(' ', '_')}"
-if state_key not in st.session_state:
+# --- INITIAL SEED GENERATOR HELPER ---
+def generate_fresh_baseline(size_label):
     np.random.seed(42)
     base_data = []
-    for i in range(1, 16):
-        if "750-16" in component_size:
+    # Generates standard historical rows from Subgroup 1 to 14
+    for i in range(1, 15):
+        if "750-16" in size_label:
             row_vals = np.random.normal(11.0137, 0.0395, 5)
         else:
             row_vals = np.random.normal(1.9989, 0.0216, 5)
         base_data.append([i] + list(row_vals))
-    st.session_state[state_key] = pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
+    return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
+
+# --- STATE SYNCHRONIZATION MATRIX ---
+state_key = f"dataset_{component_size.replace(' ', '_')}"
+archive_key = f"archive_{component_size.replace(' ', '_')}"
+
+if state_key not in st.session_state:
+    st.session_state[state_key] = generate_fresh_baseline(component_size)
 
 # --- PANEL 1: SPECIFICATION CONSTANTS BAR ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ PROCESS SPECIFICATION STANDARDS & CONSTANTS</p>", unsafe_allow_html=True)
@@ -230,13 +245,17 @@ split_col1, split_col2 = st.columns([1.1, 1.9])
 
 with split_col1:
     st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📥 LIVE SUBGROUP DATASTREAM ENTRY</p>", unsafe_allow_html=True)
+    
     if current_subgroups >= 20:
         st.error(f"🛑 MAXIMUM CAP REACHED: Engine contains {current_subgroups} Subgroups ({total_obs} samples). Entry closed.")
-        if st.button("🔄 Reset Dataset to Baseline"):
-            del st.session_state[state_key]
+        
+        # Save complete layout array to print ledger session variable before wiping
+        if st.button("💾 Archive, Print and Reset to Index #15"):
+            st.session_state[archive_key] = df.copy()
+            st.session_state[state_key] = generate_fresh_baseline(component_size)
             st.rerun()
     else:
-        st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 inputs. Target Limit: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 inputs. Current Batch Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
         with st.form(key=f"form_{state_key}", clear_on_submit=True):
             next_id = current_subgroups + 1
             st.markdown(f"<span style='color:#FFFFFF; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</span>", unsafe_allow_html=True)
@@ -253,7 +272,6 @@ with split_col1:
 
 with split_col2:
     st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 UNBROKEN ACTIVE DATASTORE STORAGE ENGINE (RAW + CALCULATED ANALYSIS)</p>", unsafe_allow_html=True)
-    # Displays raw sample columns alongside calculated values side-by-side
     st.dataframe(
         df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
         height=270,
@@ -262,7 +280,7 @@ with split_col2:
 
 st.markdown("---")
 
-# --- SIDE-BY-SIDE ANALYTICS CONTROL PLOTS ---
+# --- PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS (LOCKED VIEWMODE)</p>", unsafe_allow_html=True)
 g_col1, g_col2, g_col3 = st.columns([1.4, 1.4, 1.2])
 
@@ -273,7 +291,6 @@ with g_col1:
     f_x.add_shape(type="line", x0=df['Sample'].min(), y0=ucl_x, x1=df['Sample'].max(), y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
     f_x.add_shape(type="line", x0=df['Sample'].min(), y0=lcl_x, x1=df['Sample'].max(), y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
     f_x.update_layout(title="<b>X-Bar Process Control Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10))
-    # config={'staticPlot': True} completely freezes the chart to block human manipulation or zooming
     st.plotly_chart(f_x, use_container_width=True, config={'staticPlot': True})
 
 with g_col2:
@@ -290,12 +307,21 @@ with g_col3:
     xs = np.linspace(min(flattened.min(), lsl, tol_max_val), max(flattened.max(), usl, tol_min_val), 100)
     ys = norm.pdf(xs, grand_mean, std_dev)
     f_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
-    
     f_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     f_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
     f_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
     f_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
     f_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
-    
     f_s.update_layout(title="<b>Process Curve vs Specs & Tol</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=240, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
     st.plotly_chart(f_s, use_container_width=True, config={'staticPlot': True})
+
+# --- FINAL HISTORICAL RESULTS PRINT ARCHIVER LEDGER ---
+if archive_key in st.session_state:
+    st.markdown("<div class='print-frame'>", unsafe_allow_html=True)
+    st.markdown("### 🖨️ FINAL CONSOLIDATED SPECIFICATION REPORT (READY TO PRINT / SHIFT RECONCILIATION)")
+    st.markdown("This section stores your compiled calculation ledger before starting a new run.")
+    st.dataframe(
+        st.session_state[archive_key].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
+        use_container_width=True
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
