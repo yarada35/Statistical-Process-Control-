@@ -161,12 +161,7 @@ if "COMPONENT_REGISTRY" not in st.session_state:
         "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
         "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310},
         "Size 4 Model Profile": {"target": 8.2000, "usl": 8.4460, "lsl": 7.9540, "seed_mean": 8.1920, "seed_sigma": 0.0280},
-        "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190},
-        "Size 6 Model Profile": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.7880, "seed_sigma": 0.0250},
-        "Size 7 Model Profile": {"target": 9.4000, "usl": 9.6820, "lsl": 9.1180, "seed_mean": 9.3850, "seed_sigma": 0.0340},
-        "Size 8 Model Profile": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 11.9750, "seed_sigma": 0.0410},
-        "Size 9 Model Profile": {"target": 4.7500, "usl": 4.8925, "lsl": 4.6075, "seed_mean": 4.7350, "seed_sigma": 0.0220},
-        "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
+        "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190}
     }
 
 if "selected_size_index" not in st.session_state:
@@ -175,15 +170,14 @@ if "selected_size_index" not in st.session_state:
 if "previous_component_selection" not in st.session_state:
     st.session_state["previous_component_selection"] = ""
 
+options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
+
 # --- ACTIVE COMPONENT SELECTION MATRIX ---
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
-    options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
-    
     if st.session_state["selected_size_index"] >= len(options_list):
         st.session_state["selected_size_index"] = 0
         
-    # PATCHED: Explicit key parameter bounds widget lifecycle and forces instant menu redraw
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
         options=options_list,
@@ -245,6 +239,7 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                 
                 updated_options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
                 st.session_state["selected_size_index"] = updated_options_list.index(new_clean_name)
+                st.session_state["component_selector_widget"] = new_clean_name
                 st.success(f"✓ Profile successfully updated to '{new_clean_name}'")
                 st.rerun()
             else:
@@ -256,7 +251,7 @@ with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
     st.markdown("<div class='management-card'>", unsafe_allow_html=True)
     new_size_name = st.text_input(
         "⌨️ Setup Initial Profile Unique Name Signature String", 
-        placeholder="e.g., Size 11 Variant Profile",
+        placeholder="e.g., 195 R 15",
         key="keyboard_size_input"
     )
     
@@ -276,17 +271,25 @@ with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
                     "seed_mean": new_target,
                     "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
                 }
+                
+                # FIX: Pre-clear stale dataset session structures and sync components instantly
+                new_clean = cleaned_input_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+                st.session_state.pop(f"dataset_{new_clean}", None)
+                st.session_state.pop(f"archive_{new_clean}", None)
+                
                 updated_options = list(st.session_state["COMPONENT_REGISTRY"].keys())
                 st.session_state["selected_size_index"] = updated_options.index(cleaned_input_name)
+                st.session_state["component_selector_widget"] = cleaned_input_name
+                
                 st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
                 st.rerun()
             else:
-                st.warning("⚠️ Component sizing tag designation already exists in current registry configuration.")
+                st.warning(f"⚠️ Component sizing tag designation '{cleaned_input_name}' already exists in current registry configuration.")
         else:
             st.error("⚠️ Keyboard entry error: The text input field cannot be left blank.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- ISO-BALANCED EXPANDED DANGER ZONE CONTROL (PREVENTS STICKY COMPONENT OVERLAYS) ---
+# --- ISO-BALANCED EXPANDED DANGER ZONE CONTROL ---
 with st.expander("⚠️ DANGER ZONE: CORE RECORD PURGE & HISTORY WIPE"):
     st.markdown("<div class='management-card' style='border: 1px solid #FF3333;'>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:#FFFFFF;'>You are about to completely wipe all active history data logs and files for: <b style='color:#FF3333;'>{component_size}</b></p>", unsafe_allow_html=True)
@@ -314,10 +317,9 @@ default_lsl = config["lsl"]
 clean_name = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
 CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
 
-def generate_fresh_baseline(size_label):
-    cfg = st.session_state["COMPONENT_REGISTRY"][size_label]
-    base_data = [[1, cfg["target"], cfg["target"], cfg["target"], cfg["target"], cfg["target"]]]
-    return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
+# FIX: Return a completely empty dataframe schema (0 rows) so Sample #1 must be manually typed
+def generate_fresh_baseline():
+    return pd.DataFrame(columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
 state_key = f"dataset_{clean_name}"
 archive_key = f"archive_{clean_name}"
@@ -327,10 +329,10 @@ if state_key not in st.session_state:
         try:
             df_active = pd.read_csv(CSV_FILE_PATH)
         except Exception:
-            df_active = generate_fresh_baseline(component_size)
+            df_active = generate_fresh_baseline()
             df_active.to_csv(CSV_FILE_PATH, index=False)
     else:
-        df_active = generate_fresh_baseline(component_size)
+        df_active = generate_fresh_baseline()
         df_active.to_csv(CSV_FILE_PATH, index=False)
     st.session_state[state_key] = df_active
 else:
@@ -353,40 +355,67 @@ tol_min_val = target + calculated_tolerance
 df = st.session_state[state_key].copy()
 current_subgroups = len(df)
 
-df['Mean'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].mean(axis=1)
-df['Range'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].max(axis=1) - df[['X1', 'X2', 'X3', 'X4', 'X5']].min(axis=1)
+# --- CALCULATE STATISTICS LOGIC ONLY IF DATA EXISTS ---
+if not df.empty:
+    df['Sample'] = df['Sample'].astype(int)
+    df['Mean'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].mean(axis=1)
+    df['Range'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].max(axis=1) - df[['X1', 'X2', 'X3', 'X4', 'X5']].min(axis=1)
 
-flattened = df[['X1', 'X2', 'X3', 'X4', 'X5']].values.flatten()
-total_obs = len(flattened)
+    flattened = df[['X1', 'X2', 'X3', 'X4', 'X5']].values.flatten()
+    total_obs = len(flattened)
 
-grand_mean = df['Mean'].mean()
-average_range = df['Range'].mean()
-span_obs = float(flattened.max() - flattened.min())
-grand_median = float(np.median(flattened))
-variance_obs = float(np.var(flattened))
-obs_max = float(flattened.max())
-obs_min = float(flattened.min())
-std_dev = average_range / d2 if average_range > 0 else 0.001
-overall_std = float(np.std(flattened, ddof=1)) if len(flattened) > 1 else 0.001
+    grand_mean = df['Mean'].mean()
+    average_range = df['Range'].mean()
+    span_obs = float(flattened.max() - flattened.min())
+    grand_median = float(np.median(flattened))
+    variance_obs = float(np.var(flattened))
+    obs_max = float(flattened.max())
+    obs_min = float(flattened.min())
+    std_dev = average_range / d2 if average_range > 0 else 0.001
+    overall_std = float(np.std(flattened, ddof=1)) if len(flattened) > 1 else 0.001
 
-ucl_x = grand_mean + (A2 * average_range)
-lcl_x = grand_mean - (A2 * average_range)
-ucl_r = D4 * average_range
-lcl_r = 0.0
-gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0437
+    ucl_x = grand_mean + (A2 * average_range)
+    lcl_x = grand_mean - (A2 * average_range)
+    ucl_r = D4 * average_range
+    lcl_r = 0.0
+    gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0000
+else:
+    # Safe fallback constants for empty registries
+    total_obs = 0
+    grand_mean = target
+    average_range = 0.0000
+    span_obs = 0.0000
+    grand_median = target
+    variance_obs = 0.0000
+    obs_max = target
+    obs_min = target
+    std_dev = 0.001
+    overall_std = 0.001
+    ucl_x = target
+    lcl_x = target
+    ucl_r = 0.0
+    lcl_r = 0.0
+    gen_movement = 0.0000
+    flattened = np.array([target])
 
 def build_plots(data_frame, flat_array):
     fig_x = go.Figure()
-    fig_x.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
-    fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=grand_mean, x1=data_frame['Sample'].max(), y1=grand_mean, line=dict(color="white", width=1.5))
-    fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=ucl_x, x1=data_frame['Sample'].max(), y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
-    fig_x.add_shape(type="line", x0=data_frame['Sample'].min(), y0=lcl_x, x1=data_frame['Sample'].max(), y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
+    if not data_frame.empty:
+        fig_x.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
+        x_min, x_max = data_frame['Sample'].min(), data_frame['Sample'].max()
+    else:
+        x_min, x_max = 1, 20
+        
+    fig_x.add_shape(type="line", x0=x_min, y0=grand_mean, x1=x_max, y1=grand_mean, line=dict(color="white", width=1.5))
+    fig_x.add_shape(type="line", x0=x_min, y0=ucl_x, x1=x_max, y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
+    fig_x.add_shape(type="line", x0=x_min, y0=lcl_x, x1=x_max, y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
     fig_x.update_layout(title="<b>X-Bar Process Control Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10))
     
     fig_r = go.Figure()
-    fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
-    fig_r.add_shape(type="line", x0=data_frame['Sample'].min(), y0=average_range, x1=data_frame['Sample'].max(), y1=average_range, line=dict(color="white", width=1.5))
-    fig_r.add_shape(type="line", x0=data_frame['Sample'].min(), y0=ucl_r, x1=data_frame['Sample'].max(), y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
+    if not data_frame.empty:
+        fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
+    fig_r.add_shape(type="line", x0=x_min, y0=average_range, x1=x_max, y1=average_range, line=dict(color="white", width=1.5))
+    fig_r.add_shape(type="line", x0=x_min, y0=ucl_r, x1=x_max, y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
     fig_r.update_layout(title="<b>R-Bar Range Variability Chart</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10))
     
     fig_s = go.Figure()
@@ -459,7 +488,7 @@ with split_col1:
                 'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
             }
             
-            df_fresh = generate_fresh_baseline(component_size)
+            df_fresh = generate_fresh_baseline()
             df_fresh.to_csv(CSV_FILE_PATH, index=False)
             st.session_state[state_key] = df_fresh
             st.rerun()
@@ -478,7 +507,10 @@ with split_col1:
             
             if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
                 new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
-                df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
+                if df.empty:
+                    df_updated = new_row
+                else:
+                    df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
                 
                 df_updated.to_csv(CSV_FILE_PATH, index=False)
                 st.session_state[state_key] = df_updated
@@ -486,11 +518,14 @@ with split_col1:
 
 with split_col2:
     st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 UNBROKEN ACTIVE DATASTORE STORAGE ENGINE (RAW + CALCULATED ANALYSIS)</p>", unsafe_allow_html=True)
-    st.dataframe(
-        df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
-        height=270,
-        use_container_width=True
-    )
+    if not df.empty:
+        st.dataframe(
+            df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
+            height=270,
+            use_container_width=True
+        )
+    else:
+        st.info("💡 Storage engine empty. Please append Subgroup #1 to start data aggregation.")
 
 st.markdown("---")
 
