@@ -170,12 +170,11 @@ def load_profile_registry():
                     "seed_mean": float(row['seed_mean']),
                     "seed_sigma": float(row['seed_sigma'])
                 }
-            if registry:  # Return if successfully parsed populated files
+            if registry:
                 return registry
         except Exception:
             pass
             
-    # Fallback default catalog if configuration data doesn't exist yet
     default_registry = {
         "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
         "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
@@ -204,7 +203,6 @@ def save_profile_registry(registry_dict):
         })
     pd.DataFrame(rows).to_csv(REGISTRY_FILE, index=False)
 
-# Load master dictionary from storage file
 if "COMPONENT_REGISTRY" not in st.session_state:
     st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
 
@@ -255,18 +253,24 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
         
         if submit_spec_changes:
             new_clean_name = edit_name.strip()
-            if new_clean_name != "":
+            
+            # --- GUARDRAIL ACTION 1: SPECIFICATION BOUNDARY CHECKS ---
+            if new_clean_name == "":
+                st.error("⚠️ REGISTRY ERROR: Profile name signature cannot be blank. Please enter a valid model identifier.")
+            elif edit_lsl >= edit_target:
+                st.error(f"⚠️ METROLOGY CONFLICT: Lower Spec Limit ({edit_lsl}) cannot be greater than or equal to the Target Center ({edit_target}). Please adjust.")
+            elif edit_usl <= edit_target:
+                st.error(f"⚠️ METROLOGY CONFLICT: Upper Spec Limit ({edit_usl}) cannot be less than or equal to the Target Center ({edit_target}). Please adjust.")
+            elif edit_lsl >= edit_usl:
+                st.error(f"⚠️ METROLOGY CONFLICT: LSL ({edit_lsl}) cannot exceed or equal USL ({edit_usl}). Double-check engineering specifications blueprint.")
+            else:
                 old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 
-                # Clear active cached sessions
                 st.session_state.pop(f"dataset_{old_csv_clean}", None)
                 st.session_state.pop(f"dataset_{new_csv_clean}", None)
-                
-                # Pop out original name tag to achieve complete rename execution (preventing layout duplicates)
                 st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
                 
-                # Write back into tracking state
                 st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
                     "target": edit_target,
                     "usl": edit_usl,
@@ -275,7 +279,6 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                     "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
                 }
                 
-                # Commit updates instantly to local csv database configuration file
                 save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
                 
                 if old_csv_clean != new_csv_clean:
@@ -288,8 +291,6 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                 st.session_state["active_profile_name"] = new_clean_name
                 st.success(f"✓ Profile successfully updated to '{new_clean_name}'")
                 st.rerun()
-            else:
-                st.error("⚠️ Keyboard entry error: Field target validation string blank.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
@@ -308,30 +309,32 @@ with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
     
     if st.button("💾 SAVE CUSTOM STRING TO DROP-DOWN"):
         cleaned_input_name = new_size_name.strip()
-        if cleaned_input_name != "":
-            if cleaned_input_name not in st.session_state["COMPONENT_REGISTRY"]:
-                st.session_state["COMPONENT_REGISTRY"][cleaned_input_name] = {
-                    "target": new_target,
-                    "usl": new_usl,
-                    "lsl": new_lsl,
-                    "seed_mean": new_target,
-                    "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
-                }
-                
-                # Save registry persistently to disk storage file
-                save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
-                
-                new_clean = cleaned_input_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-                st.session_state.pop(f"dataset_{new_clean}", None)
-                st.session_state.pop(f"archive_{new_clean}", None)
-                
-                st.session_state["active_profile_name"] = cleaned_input_name
-                st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
-                st.rerun()
-            else:
-                st.warning(f"⚠️ Component sizing tag designation '{cleaned_input_name}' already exists in current registry configuration.")
+        
+        # --- GUARDRAIL ACTION 2: NEW REGISTRY VERIFICATION ---
+        if cleaned_input_name == "":
+            st.error("⚠️ VALIDATION ERROR: The new custom profile name field cannot be blank.")
+        elif cleaned_input_name in st.session_state["COMPONENT_REGISTRY"]:
+            st.warning(f"⚠️ DUPLICATE ENTRY: Model profile designation '{cleaned_input_name}' already exists in current database.")
+        elif new_lsl >= new_target or new_usl <= new_target or new_lsl >= new_usl:
+            st.error("⚠️ LIMIT ERROR: Invalid engineering architecture metrics. Ensure LSL < Target < USL.")
         else:
-            st.error("⚠️ Keyboard entry error: The text input field cannot be left blank.")
+            st.session_state["COMPONENT_REGISTRY"][cleaned_input_name] = {
+                "target": new_target,
+                "usl": new_usl,
+                "lsl": new_lsl,
+                "seed_mean": new_target,
+                "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
+            }
+            
+            save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
+            
+            new_clean = cleaned_input_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+            st.session_state.pop(f"dataset_{new_clean}", None)
+            st.session_state.pop(f"archive_{new_clean}", None)
+            
+            st.session_state["active_profile_name"] = cleaned_input_name
+            st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
+            st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- ISO-BALANCED EXPANDED DANGER ZONE CONTROL ---
@@ -549,15 +552,31 @@ with split_col1:
             v5 = st.number_input("Sub-Sample Measurement X5", value=float(default_target), format="%.4f")
             
             if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
-                new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
-                if df.empty:
-                    df_updated = new_row
-                else:
-                    df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
+                input_array = np.array([v1, v2, v3, v4, v5])
                 
-                df_updated.to_csv(CSV_FILE_PATH, index=False)
-                st.session_state[state_key] = df_updated
-                st.rerun()
+                # --- GUARDRAIL ACTION 3: ENTRY ERROR CHECKER ---
+                # Detects if a sample entry deviates from target by an impossible amount (e.g., typing 111 instead of 11.1)
+                extreme_deviation = False
+                for val in input_array:
+                    if val > (target * 3) or val < (target / 3):
+                        extreme_deviation = True
+                        bad_value = val
+                        break
+                
+                if extreme_deviation:
+                    st.error(f"❌ ENTRY PROTECTION GUARDRAIL: Detected unusual physical value ({bad_value:.4f}). This deviates drastically from the engineering target blueprint of {target:.4f}. Please cross-check and type again.")
+                elif np.any(input_array <= 0):
+                    st.error("❌ PHYSICAL SPACE VIOLATION: Extrusion measurements cannot be negative or equal to 0. Please enter actual laboratory values.")
+                else:
+                    new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
+                    if df.empty:
+                        df_updated = new_row
+                    else:
+                        df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
+                    
+                    df_updated.to_csv(CSV_FILE_PATH, index=False)
+                    st.session_state[state_key] = df_updated
+                    st.rerun()
 
 with split_col2:
     st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 UNBROKEN ACTIVE DATASTORE STORAGE ENGINE (RAW + CALCULATED ANALYSIS)</p>", unsafe_allow_html=True)
@@ -597,11 +616,11 @@ if archive_key in st.session_state:
     
     st.markdown("#### 📝 CRITICAL QUALITY PERFORMANCE AUDIT OBSERVATIONS:")
     if m['cpk'] >= 1.33:
-        st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** The extrusion variant dispersion profile sits safely inside specification boundaries. System exhibits complete statistical stability.")
+        st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE (Cpk = {m['cpk']:.4f}).** The extrusion variant dispersion profile sits safely inside specification boundaries. System exhibits complete statistical stability.")
     elif m['cpk'] >= 1.00:
-        st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** Center shifts detected. Increase close die pressure maintenance monitoring loops immediately.")
+        st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE (Cpk = {m['cpk']:.4f}).** Center shifts detected. Increase close die pressure maintenance monitoring loops immediately.")
     else:
-        st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT ($C_{{pk}}$ = {m['cpk']:.4f}).** Variance profile exceeds standard deviation ceiling. Immediate mechanical verification required on head temperatures.")
+        st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT (Cpk = {m['cpk']:.4f}).** Variance profile exceeds standard deviation ceiling. Immediate mechanical verification required on head temperatures.")
         
     st.markdown("---")
     st.markdown("**Archived Raw Data and Computed Limits:**")
