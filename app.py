@@ -154,11 +154,17 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# --- DIRECTORY ISOLATION GUARDRAIL ---
+# Forces files into a subfolder to bypass Streamlit's root file watcher reloads
+DATA_DIR = "data"
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
+
 # --- AUTHORIZATION GATEWAY PROPERTIES ---
-MANAGER_PASSTOKEN = "ADDIS_QA_2026"  # Set your private secure master configuration token key here
+MANAGER_PASSTOKEN = "ADDIS_QA_2026"
 
 # --- CONFIG HARDWARE PERSISTENCE REGISTRY FILE MANAGEMENT ---
-REGISTRY_FILE = "profile_registry_config.csv"
+REGISTRY_FILE = os.path.join(DATA_DIR, "profile_registry_config.csv")
 
 def load_profile_registry():
     if os.path.exists(REGISTRY_FILE):
@@ -232,11 +238,11 @@ with row_sel3:
 with row_sel4:
     tolerance_pct = st.number_input("Given Tolerance (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# Generate structured file keys combining Size + Date + Shift to isolate inputs securely
+# Generate isolated filepath under the data directory folder
 clean_size_str = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-clean_shift_str = active_shift.split(' ')[1].lower()  # returns 'a', 'b', or 'c'
+clean_shift_str = active_shift.split(' ')[1].lower()  
 unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
-CSV_FILE_PATH = f"spc_datastore_{unique_data_key}.csv"
+CSV_FILE_PATH = os.path.join(DATA_DIR, f"spc_datastore_{unique_data_key}.csv")
 
 if st.session_state["previous_unique_datakey"] != unique_data_key:
     st.session_state["previous_unique_datakey"] = unique_data_key
@@ -247,14 +253,13 @@ current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 # --- RE-ENGINEERED AUTHORIZED SPECIFICATION MODIFICATION MODULES ---
 with st.expander("🔐 Manager Authorization Center: Modify Dropdowns & Product Blueprints"):
     st.markdown("<div class='management-card' style='border: 1px solid #FFBB00;'>", unsafe_allow_html=True)
-    st.markdown("⚠️ *Supervisors do not have rights to change configuration metrics. Master key signature string token validation required.*")
+    st.markdown("⚠️ *Supervisors do not have rights to change configuration metrics. Master key verification required.*")
     
     auth_key_input = st.text_input("🔑 Enter Master Management Authorization Passcode", type="password")
     
     if auth_key_input == MANAGER_PASSTOKEN:
         st.success("🔓 Authorization verified successfully. Modification controllers unlocked.")
         
-        # Action A: Rename/Edit Current
         st.markdown("---")
         with st.form(key=f"authorized_edit_form_{clean_size_str}"):
             st.markdown(f"✍️ **Editing Specification Blueprint for Target:** `{component_size}`")
@@ -281,10 +286,9 @@ with st.expander("🔐 Manager Authorization Center: Modify Dropdowns & Product 
                     st.success("✓ Profile blueprint committed to configuration database.")
                     st.rerun()
                     
-        # Action B: Create New Profile
         st.markdown("---")
         st.markdown("➕ **Add Brand New Component Sizing Profile Matrix**")
-        new_size_name = st.text_input("Setup New Profile Unique Name Signature String (e.g., 195 R 15)")
+        new_size_name = st.text_input("Setup New Profile Unique Name Signature String")
         nc1, nc2, nc3 = st.columns(3)
         with nc1: new_target = nc1.number_input("Design Target Blueprint Value", value=10.0000, format="%.4f")
         with nc2: new_usl = nc2.number_input("Upper Specification Limit (USL)", value=10.3000, format="%.4f")
@@ -302,9 +306,9 @@ with st.expander("🔐 Manager Authorization Center: Modify Dropdowns & Product 
                 st.success(f"✓ '{cleaned_input_name}' added to dropdown catalog registry.")
                 st.rerun()
             else:
-                st.error("❌ Validation error: Field is blank or product profile identifier code already exists.")
+                st.error("❌ Validation error: Field is blank or profile code already exists.")
     elif auth_key_input != "":
-        st.error("🔒 ACCESS DENIED: Invalid Management Authorization passcode string token.")
+        st.error("🔒 ACCESS DENIED: Invalid Management Authorization passcode.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- ISO-BALANCED ACTIVE SHIFT LOG PURGE ENGINE ---
@@ -320,7 +324,6 @@ with st.expander("⚠️ Shift Data Wipe & Cleanup Utilities"):
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Reload active specs globally
 config = st.session_state["COMPONENT_REGISTRY"][component_size]
 default_target = config["target"]
 default_usl = config["usl"]
@@ -363,15 +366,12 @@ tol_min_val = target + calculated_tolerance
 df = st.session_state[state_key].copy()
 current_subgroups = len(df)
 
-# --- CALCULATE STATISTICS LOGIC ONLY IF DATA EXISTS ---
 if not df.empty:
     df['Sample'] = df['Sample'].astype(int)
     df['Mean'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].mean(axis=1)
     df['Range'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].max(axis=1) - df[['X1', 'X2', 'X3', 'X4', 'X5']].min(axis=1)
-
     flattened = df[['X1', 'X2', 'X3', 'X4', 'X5']].values.flatten()
     total_obs = len(flattened)
-
     grand_mean = df['Mean'].mean()
     average_range = df['Range'].mean()
     span_obs = float(flattened.max() - flattened.min())
@@ -381,12 +381,11 @@ if not df.empty:
     obs_min = float(flattened.min())
     std_dev = average_range / d2 if average_range > 0 else 0.001
     overall_std = float(np.std(flattened, ddof=1)) if len(flattened) > 1 else 0.001
-
     ucl_x = grand_mean + (A2 * average_range)
     lcl_x = grand_mean - (A2 * average_range)
     ucl_r = D4 * average_range
     lcl_r = 0.0
-    gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0000
+    gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0
 else:
     total_obs = 0; grand_mean = target; average_range = 0.0; span_obs = 0.0; grand_median = target
     variance_obs = 0.0; obs_max = target; obs_min = target; std_dev = 0.001; overall_std = 0.001
@@ -400,7 +399,6 @@ def build_plots(data_frame, flat_array):
         x_min, x_max = data_frame['Sample'].min(), data_frame['Sample'].max()
     else:
         x_min, x_max = 1, 20
-        
     fig_x.add_shape(type="line", x0=x_min, y0=grand_mean, x1=x_max, y1=grand_mean, line=dict(color="white", width=1.5))
     fig_x.add_shape(type="line", x0=x_min, y0=ucl_x, x1=x_max, y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
     fig_x.add_shape(type="line", x0=x_min, y0=lcl_x, x1=x_max, y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
