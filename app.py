@@ -165,7 +165,7 @@ MANAGER_PASSTOKEN = "ADDIS_QA_2026"
 # --- CONFIG HARDWARE PERSISTENCE REGISTRY FILE MANAGEMENT ---
 REGISTRY_FILE = os.path.join(DATA_DIR, "profile_registry_config.csv")
 
-# 8 ACTIVE MASTER SIZES PRE-BAKED TO INSURE IMMUNITY FROM LOSS (ALPH/BETA STRIPPED)
+# Clean baseline production profile dictionary
 MASTER_FACTORY_BASICS = {
     "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.1600, "seed_sigma": 0.0395},
     "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 2.0200, "seed_sigma": 0.0216},
@@ -196,7 +196,6 @@ def load_profile_registry():
         try:
             df_reg = pd.read_csv(REGISTRY_FILE)
             for _, row in df_reg.iterrows():
-                # Prevent deprecated Alpha/Beta profiles from showing up if they still exist inside an old csv file
                 p_name = str(row['profile_name'])
                 if "Backup Custom Profile" in p_name:
                     continue
@@ -210,30 +209,27 @@ def load_profile_registry():
         except Exception:
             pass
 
-    # ENFORCEMENT LOOP: Synchronize core active parameters
     updated = False
     for master_key, master_val in MASTER_FACTORY_BASICS.items():
         if master_key not in current_registry:
             current_registry[master_key] = master_val
             updated = True
             
-    # Force rewrite if we found deprecated items to clean up the csv record completely
     if os.path.exists(REGISTRY_FILE):
-        df_reg_check = pd.read_csv(REGISTRY_FILE)
-        if df_reg_check['profile_name'].str.contains("Backup Custom Profile").any():
-            updated = True
+        try:
+            df_reg_check = pd.read_csv(REGISTRY_FILE)
+            if df_reg_check['profile_name'].str.contains("Backup Custom Profile").any():
+                updated = True
+        except Exception:
+            pass
 
     if updated or not os.path.exists(REGISTRY_FILE):
         save_profile_registry(current_registry)
         
     return current_registry
 
-# Manage state cache pipelines
-if "COMPONENT_REGISTRY" not in st.session_state:
-    st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
-else:
-    st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
-
+# Enforce stable profile registry data
+st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
 options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
 
 if "active_profile_name" not in st.session_state or st.session_state["active_profile_name"] not in options_list:
@@ -247,7 +243,12 @@ st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>�
 row_sel1, row_sel2, row_sel3, row_sel4 = st.columns([2, 1, 1, 1])
 
 with row_sel1:
-    current_idx = options_list.index(st.session_state["active_profile_name"])
+    try:
+        current_idx = options_list.index(st.session_state["active_profile_name"])
+    except ValueError:
+        current_idx = 0
+        st.session_state["active_profile_name"] = options_list[0]
+
     component_size = st.selectbox(
         "📂 Active Profile Target Size Blueprint",
         options=options_list,
@@ -264,7 +265,7 @@ with row_sel3:
 with row_sel4:
     tolerance_pct = st.number_input("Given Tolerance (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# Dynamic file string compilation
+# Compiling unique filename descriptors
 clean_size_str = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
 clean_shift_str = active_shift.split(' ')[1].lower()  
 unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
@@ -276,7 +277,7 @@ if st.session_state["previous_unique_datakey"] != unique_data_key:
 
 current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 
-# --- RE-ENGINEERED AUTHORIZED SPECIFICATION MODIFICATION MODULES ---
+# --- AUTHORIZED SPECIFICATION MODIFICATION MODULES ---
 with st.expander("🔐 Manager Authorization Center: Modify Dropdowns & Product Blueprints"):
     st.markdown("<div class='management-card' style='border: 1px solid #FFBB00;'>", unsafe_allow_html=True)
     st.markdown("⚠️ *Supervisors do not have rights to change configuration metrics. Master key verification required.*")
@@ -443,4 +444,157 @@ def build_plots(data_frame, flat_array):
     
     fig_s = go.Figure()
     fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
-    xs = np.linspace(min(flat
+    
+    # FIXED: Restored complete multi-bracket closure logic perfectly
+    xs = np.linspace(min(flat_array.min(), lsl, tol_max_val), max(flat_array.max(), usl, tol_min_val), 100)
+    ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
+    
+    fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
+    fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
+    fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
+    fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
+    fig_s.update_layout(title="<b>Process Curve vs Specs</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
+    
+    return fig_x, fig_r, fig_s
+
+# --- PANEL 2: LATERAL MATRIX DISPLAY ---
+st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 LIVE PROCESS SUMMARY PARAMETERS MATRIX</p>", unsafe_allow_html=True)
+st.markdown(f"""
+<table class="lateral-table">
+    <tr>
+        <td class="lateral-cell"><div class="cell-label">Target Center</div><div class="cell-value">{target:.4f}</div><div class="cell-desc">A. Nominal design center weight for product blueprint accuracy.</div></td>
+        <td class="lateral-cell"><div class="cell-label">USL</div><div class="cell-value">{usl:.4f}</div><div class="cell-desc">B. Upper Spec Limit. Absolute max value allowed by PI & QA.</div></td>
+        <td class="lateral-cell"><div class="cell-label">LSL</div><div class="cell-value">{lsl:.4f}</div><div class="cell-desc">C. Lower Spec Limit. Absolute min value allowed before scrap.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Range Mean (R̄)</div><div class="cell-value">{average_range:.4f}</div><div class="cell-desc">D. Average internal subgroup spread (Max - Min variance index).</div></td>
+        <td class="lateral-cell"><div class="cell-label">Total Observations</div><div class="cell-value">{total_obs} / 100</div><div class="cell-desc">E. Combined count of individual measurement entries recorded.</div></td>
+    </tr>
+    <tr>
+        <td class="lateral-cell"><div class="cell-label">Grand Mean (X̄̄)</div><div class="cell-value">{grand_mean:.4f}</div><div class="cell-desc">F. Double bar process center weight across all recorded data.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Gen. Movement</div><div class="cell-value">{gen_movement:.4f}</div><div class="cell-desc">G. Stepwise standard error change value between subgroups.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Span Total</div><div class="cell-value">{span_obs:.4f}</div><div class="cell-desc">H. Absolute width between single highest and lowest point.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Grand Median</div><div class="cell-value">{grand_median:.4f}</div><div class="cell-desc">I. Midpoint value splitting the sorted observation array.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Obs Variance</div><div class="cell-value">{variance_obs:.6f}</div><div class="cell-desc">J. Statistical variance (Sigma squared) of all active points.</div></td>
+    </tr>
+    <tr>
+        <td class="lateral-cell"><div class="cell-label">Obs Max Value</div><div class="cell-value">{obs_max:.4f}</div><div class="cell-desc">K. Highest single raw component measurement found.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Obs Min Value</div><div class="cell-value">{obs_min:.4f}</div><div class="cell-desc">L. Lowest single raw component measurement found.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Standard Dev (σ)</div><div class="cell-value">{std_dev:.4f}</div><div class="cell-desc">M. Estimated process sigma computed via Shewhart R̄/d2 formula.</div></td>
+        <td class="lateral-cell"><div class="cell-label">X̄ UCL / LCL</div><div class="cell-value">{ucl_x:.4f} / {lcl_x:.4f}</div><div class="cell-desc">N. Shewhart control boundaries for subgroup averages.</div></td>
+        <td class="lateral-cell"><div class="cell-label">R UCL / LCL</div><div class="cell-value">{ucl_r:.4f} / {lcl_r:.4f}</div><div class="cell-desc">O. Upper variability boundaries tracking machine stability.</div></td>
+    </tr>
+</table>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# --- UNBROKEN STREAM LAYOUT SPLIT ---
+split_col1, split_col2 = st.columns([1.1, 1.9])
+
+with split_col1:
+    st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📥 LIVE SUBGROUP DATASTREAM ENTRY</p>", unsafe_allow_html=True)
+    
+    if current_subgroups >= 20:
+        st.error(f"🛑 MAXIMUM CAP REACHED: This shift sheet contains {current_subgroups} Subgroups. Entry closed.")
+        
+        if st.button("💾 Archive, Print and Reset to Sample #1"):
+            cp = (usl - lsl) / (6 * std_dev) if std_dev > 0 else 0
+            cpu = (usl - grand_mean) / (3 * std_dev) if std_dev > 0 else 0
+            cpl = (grand_mean - lsl) / (3 * std_dev) if std_dev > 0 else 0
+            cpk = min(cpu, cpl)
+            pp = (usl - lsl) / (6 * overall_std) if overall_std > 0 else 0
+            ppu = (usl - grand_mean) / (3 * overall_std) if overall_std > 0 else 0
+            ppl = (grand_mean - lsl) / (3 * overall_std) if overall_std > 0 else 0
+            ppk = min(ppu, ppl)
+            
+            st.session_state[archive_key] = {
+                'df': df.copy(), 'flat': flattened.copy(),
+                'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev},
+                'meta': {'date': active_date, 'shift': active_shift}
+            }
+            
+            df_fresh = generate_fresh_baseline()
+            df_fresh.to_csv(CSV_FILE_PATH, index=False)
+            st.session_state[state_key] = df_fresh
+            st.rerun()
+    else:
+        st.markdown(f"<div class='sop-card'><b>📋 SOP LOG:</b> {active_shift} | Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
+        
+        with st.form(key=f"data_entry_form_{unique_data_key}_{current_subgroups}"):
+            next_id = current_subgroups + 1
+            st.markdown(f"<div style='color:#FFFFFF; font-weight:bold;'>Target Entry: Subgroup #{next_id} / 20</div>", unsafe_allow_html=True)
+            
+            supervisor_name = st.text_input("Supervisor Token/Name", value="Supervisor 1")
+            
+            v1 = st.number_input("Sub-Sample Measurement X1", value=float(default_target), format="%.4f")
+            v2 = st.number_input("Sub-Sample Measurement X2", value=float(default_target), format="%.4f")
+            v3 = st.number_input("Sub-Sample Measurement X3", value=float(default_target), format="%.4f")
+            v4 = st.number_input("Sub-Sample Measurement X4", value=float(default_target), format="%.4f")
+            v5 = st.number_input("Sub-Sample Measurement X5", value=float(default_target), format="%.4f")
+            
+            if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
+                input_array = np.array([v1, v2, v3, v4, v5])
+                
+                if supervisor_name.strip() == "":
+                    st.error("❌ ENTRY ERROR: Supervisor identification signature cannot be left blank.")
+                elif np.any(input_array > (target * 3)) or np.any(input_array < (target / 3)):
+                    st.error(f"❌ METROLOGY GUARDRAIL: A recorded value deviates excessively from blueprint target center ({target:.4f}). Check for typing errors.")
+                elif np.any(input_array <= 0):
+                    st.error("❌ METROLOGY GUARDRAIL: Physical dimension inputs must be greater than zero.")
+                else:
+                    now_timestamp = datetime.now().strftime("%H:%M:%S")
+                    new_row = pd.DataFrame([[
+                        next_id, now_timestamp, supervisor_name.strip(), active_shift,
+                        v1, v2, v3, v4, v5
+                    ]], columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
+                    
+                    df_updated = new_row if df.empty else pd.concat([df, new_row], ignore_index=True)
+                    df_updated.to_csv(CSV_FILE_PATH, index=False)
+                    st.session_state[state_key] = df_updated
+                    st.rerun()
+
+with split_col2:
+    st.markdown(f"<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 DATASTORE STORAGE SHEET ({active_date} — {active_shift})</p>", unsafe_allow_html=True)
+    if not df.empty:
+        st.dataframe(
+            df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5']),
+            height=270, use_container_width=True
+        )
+    else:
+        st.info("💡 Shift register empty. Append data to begin analysis aggregation.")
+
+st.markdown("---")
+
+# --- PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS ---
+st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS (LOCKED VIEWMODE)</p>", unsafe_allow_html=True)
+g1, g2, g3 = st.columns([1.4, 1.4, 1.2])
+fx, fr, fs = build_plots(df, flattened)
+g1.plotly_chart(fx, use_container_width=True, config={'staticPlot': True})
+g2.plotly_chart(fr, use_container_width=True, config={'staticPlot': True})
+g3.plotly_chart(fs, use_container_width=True, config={'staticPlot': True})
+
+# --- FINAL HISTORICAL RESULTS & PROCESS CAPABILITY STUDY PRINT LEDGER ---
+if archive_key in st.session_state:
+    arch = st.session_state[archive_key]
+    st.markdown("<div class='print-frame'>", unsafe_allow_html=True)
+    st.markdown("## 🖨️ FINAL CONSOLIDATED SPECIFICATION & CAPABILITY REPORT")
+    st.markdown(f"#### PI & QA Division — Shift Performance Verification Ledger ({component_size})")
+    st.markdown(f"**Operational Context:** Date: `{arch['meta']['date']}` | Production Run Rotation: `{arch['meta']['shift']}`")
+    
+    m = arch['metrics']
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">POTENTIAL CAPABILITY (Cp)</p><h3 style="color:#00FF66;margin:5px 0;">{m["cp"]:.4f}</h3></div>', unsafe_allow_html=True)
+    mc2.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">MINIMUM PROCESS INDEX (Cpk)</p><h3 style="color:#00FF66;margin:5px 0;">{m["cpk"]:.4f}</h3></div>', unsafe_allow_html=True)
+    mc3.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">TOTAL PERFORMANCE (Pp)</p><h3 style="color:#00FF66;margin:5px 0;">{m["pp"]:.4f}</h3></div>', unsafe_allow_html=True)
+    mc4.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">PERFORMANCE INDEX (Ppk)</p><h3 style="color:#00FF66;margin:5px 0;">{m["ppk"]:.4f}</h3></div>', unsafe_allow_html=True)
+    
+    st.markdown("#### 📝 CRITICAL QUALITY PERFORMANCE AUDIT OBSERVATIONS:")
+    if m['cpk'] >= 1.33:
+        st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** Extrusion variant dispersion sits completely stable within spec boundaries.")
+    elif m['cpk'] >= 1.00:
+        st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** Center shifts detected. Increase line pressure monitoring loops.")
+    else:
+        st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT ($C_{{pk}}$ = {m['cpk']:.4f}).** Variance profile exceeds limits. Immediate mechanical inspection required.")
+        
+    st.markdown("---")
+    st.dataframe(arch['df'].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5']), use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
