@@ -97,7 +97,7 @@ st.markdown("""
         font-weight: bold !important;
     }
     
-    .stSelectbox div[data-baseweb="select"], .stNumberInput input {
+    .stSelectbox div[data-baseweb="select"], .stNumberInput input, .stTextInput input {
         background-color: #1A221E !important;
         color: #00FF66 !important;
         border: 1px solid #00FF66 !important;
@@ -169,13 +169,21 @@ if "COMPONENT_REGISTRY" not in st.session_state:
         "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
     }
 
+# Track currently selected option across reruns cleanly
+if "selected_size_index" not in st.session_state:
+    st.session_state["selected_size_index"] = 0
+
 # --- ACTIVE COMPONENT SELECTION MATRIX ---
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
+    options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
-        list(st.session_state["COMPONENT_REGISTRY"].keys())
+        options=options_list,
+        index=st.session_state["selected_size_index"]
     )
+    # Sync current selection index back to state management
+    st.session_state["selected_size_index"] = options_list.index(component_size)
 
 # Extract blueprint properties dynamically
 config = st.session_state["COMPONENT_REGISTRY"][component_size]
@@ -186,33 +194,46 @@ default_lsl = config["lsl"]
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
-with st.expander("➕ Define & Add New Component Size Profile To Registry"):
+# --- INTERACTIVE KEYBOARD TEXT ENTRY CARD ---
+with st.expander("➕ Define & Type New Custom Component Size Profile"):
     st.markdown("<div class='management-card'>", unsafe_allow_html=True)
-    new_size_name = st.text_input("New Component Unique Name (e.g., Size 11 HT-100)", placeholder="Type size signature...")
+    
+    # Text field specifically designed for direct keyboard text entry
+    new_size_name = st.text_input(
+        "✏️ Keyboard Input: Type Custom Size Dimension String Name", 
+        placeholder="e.g., 12.00-20 HC-22 Tread",
+        key="keyboard_size_input"
+    )
     
     nc1, nc2, nc3 = st.columns(3)
-    with nc1: new_target = nc1.number_input("Design Target Value", value=10.0000, format="%.4f")
-    with nc2: new_usl = nc2.number_input("Upper Spec Limit (USL)", value=10.3000, format="%.4f")
-    with nc3: new_lsl = nc3.number_input("Lower Spec Limit (LSL)", value=9.7000, format="%.4f")
+    with nc1: new_target = nc1.number_input("Design Target Blueprint Value", value=10.0000, format="%.4f")
+    with nc2: new_usl = nc2.number_input("Upper Specification Limit (USL)", value=10.3000, format="%.4f")
+    with nc3: new_lsl = nc3.number_input("Lower Specification Limit (LSL)", value=9.7000, format="%.4f")
     
-    if st.button("💾 COMMIT NEW SIZE TO PRODUCTION REGISTRY"):
-        if new_size_name.strip() != "" and new_size_name not in st.session_state["COMPONENT_REGISTRY"]:
-            st.session_state["COMPONENT_REGISTRY"][new_size_name] = {
-                "target": new_target,
-                "usl": new_usl,
-                "lsl": new_lsl,
-                "seed_mean": new_target * 0.99,
-                "seed_sigma": (new_usl - new_lsl) / 10.0
-            }
-            st.success(f"✓ Registered '{new_size_name}' successfully into tracking matrix.")
-            st.rerun()
+    if st.button("💾 SAVE CUSTOM STRING TO DROP-DOWN"):
+        cleaned_input_name = new_size_name.strip()
+        if cleaned_input_name != "":
+            if cleaned_input_name not in st.session_state["COMPONENT_REGISTRY"]:
+                st.session_state["COMPONENT_REGISTRY"][cleaned_input_name] = {
+                    "target": new_target,
+                    "usl": new_usl,
+                    "lsl": new_lsl,
+                    "seed_mean": new_target,
+                    "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
+                }
+                # Force drop down selector index onto newly configured size profile target
+                updated_options = list(st.session_state["COMPONENT_REGISTRY"].keys())
+                st.session_state["selected_size_index"] = updated_options.index(cleaned_input_name)
+                st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
+                st.rerun()
+            else:
+                st.warning("⚠️ Component sizing tag designation already exists in current registry configuration.")
         else:
-            st.error("⚠️ Invalid entry. Name empty or already exists.")
+            st.error("⚠️ Keyboard entry error: The text input field cannot be left blank.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- FILE HARDWARE PERSISTENCE ENGINE ---
-clean_name = component_size.replace(' ', '_').replace('-', '_')
+clean_name = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
 CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
 
 def generate_fresh_baseline(size_label):
