@@ -172,6 +172,10 @@ if "COMPONENT_REGISTRY" not in st.session_state:
 if "selected_size_index" not in st.session_state:
     st.session_state["selected_size_index"] = 0
 
+# Track previous component selection to detect when a drop-down switch occurs
+if "previous_component_selection" not in st.session_state:
+    st.session_state["previous_component_selection"] = ""
+
 # --- ACTIVE COMPONENT SELECTION MATRIX ---
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
@@ -190,14 +194,19 @@ with col_sel1:
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# Extract current configuration parameters to pre-fill the renaming interface cleanly
+# --- DETECT SWAP: Reset cached memory variables instantly if selection changes ---
+if st.session_state["previous_component_selection"] != component_size:
+    st.session_state["previous_component_selection"] = component_size
+    # Clear out any leftover form data values sitting inside memory states
+    old_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+    st.session_state.pop(f"dataset_{old_clean}", None)
+
 current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 
 # --- RE-ENGINEERED UNBROKEN PROFILE EDIT & RENAMING MATRIX ENGINE ---
 with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core Specifications"):
     st.markdown("<div class='management-card' style='border: 1px solid #00FF66;'>", unsafe_allow_html=True)
     
-    # We execute inside a specialized sub-form configuration block to keep computation stable
     with st.form(key=f"rename_specification_form_{component_size.replace(' ', '_')}"):
         st.markdown(f"<p style='color:#FFFFFF; font-weight:bold;'>Editing Profile Target: <span style='color:#00FF66;'>{component_size}</span></p>", unsafe_allow_html=True)
         
@@ -213,14 +222,15 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
         if submit_spec_changes:
             new_clean_name = edit_name.strip()
             if new_clean_name != "":
-                # Capture current historical parameters or generate a seed layout configuration matrix
                 old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 
-                # Delete old index entry inside dictionary data engine safely
+                # Clear session state data frames so fresh configs render immediately 
+                st.session_state.pop(f"dataset_{old_csv_clean}", None)
+                st.session_state.pop(f"dataset_{new_csv_clean}", None)
                 st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
                 
-                # Write back revised specifications array maps safely 
+                # Register rewritten values
                 st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
                     "target": edit_target,
                     "usl": edit_usl,
@@ -229,7 +239,7 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                     "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
                 }
                 
-                # Rename the file structure on the physical layer to protect current historical entries
+                # Physical Layer Rename logic
                 if old_csv_clean != new_csv_clean:
                     if os.path.exists(f"spc_datastore_{old_csv_clean}.csv"):
                         try:
@@ -237,14 +247,30 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                         except Exception:
                             pass
                 
-                # Relocate current selected drop-down option cleanly to point at updated string name
                 updated_options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
                 st.session_state["selected_size_index"] = updated_options_list.index(new_clean_name)
-                st.success(f"✓ Profile successfully updated to '{new_clean_name}' without structural layout errors.")
+                st.success(f"✓ Profile successfully updated to '{new_clean_name}'")
                 st.rerun()
             else:
                 st.error("⚠️ Keyboard entry error: Field target validation string blank.")
                 
+    st.markdown("---")
+    # --- PHYSICAL LAYER DELETE & RESET BUTTON ---
+    st.markdown("<p style='color:#FF3333; font-weight:bold; font-size:12px;'>⚠️ DANGER ZONE: CORE RECORD PURGE</p>", unsafe_allow_html=True)
+    if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY & RESTART AT SAMPLE #1"):
+        purge_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+        target_csv_file = f"spc_datastore_{purge_clean}.csv"
+        
+        # Kill physical file copy
+        if os.path.exists(target_csv_file):
+            os.remove(target_csv_file)
+            
+        # Clear out fast runtime memory registers
+        st.session_state.pop(f"dataset_{purge_clean}", None)
+        st.session_state.pop(f"archive_{purge_clean}", None)
+        st.success(f"💥 Datastore history for '{component_size}' cleared completely. Counter reset to 1.")
+        st.rerun()
+        
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
@@ -293,28 +319,28 @@ clean_name = component_size.replace(' ', '_').replace('-', '_').replace('.', '_'
 CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
 
 def generate_fresh_baseline(size_label):
-    np.random.seed(42)
-    base_data = []
     cfg = st.session_state["COMPONENT_REGISTRY"][size_label]
-    for i in range(1, 2):
-        row_vals = np.random.normal(cfg["seed_mean"], cfg["seed_sigma"], 5)
-        base_data.append([i] + list(row_vals))
+    # ALWAYS start fresh with a single default row at index #1
+    base_data = [[1, cfg["target"], cfg["target"], cfg["target"], cfg["target"], cfg["target"]]]
     return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
-
-# Safe IO Verification Logic
-if os.path.exists(CSV_FILE_PATH):
-    try:
-        df_active = pd.read_csv(CSV_FILE_PATH)
-    except Exception:
-        df_active = generate_fresh_baseline(component_size)
-        df_active.to_csv(CSV_FILE_PATH, index=False)
-else:
-    df_active = generate_fresh_baseline(component_size)
-    df_active.to_csv(CSV_FILE_PATH, index=False)
 
 state_key = f"dataset_{clean_name}"
 archive_key = f"archive_{clean_name}"
-st.session_state[state_key] = df_active
+
+# Check for storage maps cleanly
+if state_key not in st.session_state:
+    if os.path.exists(CSV_FILE_PATH):
+        try:
+            df_active = pd.read_csv(CSV_FILE_PATH)
+        except Exception:
+            df_active = generate_fresh_baseline(component_size)
+            df_active.to_csv(CSV_FILE_PATH, index=False)
+    else:
+        df_active = generate_fresh_baseline(component_size)
+        df_active.to_csv(CSV_FILE_PATH, index=False)
+    st.session_state[state_key] = df_active
+else:
+    df_active = st.session_state[state_key]
 
 # --- PANEL 1: SPECIFICATION CONSTANTS BAR ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ PROCESS SPECIFICATION STANDARDS & CONSTANTS</p>", unsafe_allow_html=True)
@@ -443,23 +469,29 @@ with split_col1:
             
             df_fresh = generate_fresh_baseline(component_size)
             df_fresh.to_csv(CSV_FILE_PATH, index=False)
+            st.session_state[state_key] = df_fresh
             st.rerun()
     else:
         st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 inputs. Current Batch Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
-        with st.form(key=f"form_{clean_name}", clear_on_submit=True):
+        
+        # Use clean form identity keys to break cached layout repetition bugs
+        with st.form(key=f"data_entry_form_{clean_name}_{current_subgroups}"):
             next_id = current_subgroups + 1
             st.markdown(f"<div style='color:#FFFFFF; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</div>", unsafe_allow_html=True)
-            v1 = st.number_input("Sub-Sample Measurement X1", value=float(df.iloc[-1]['X1']), format="%.4f", key=f"x1_{clean_name}")
-            v2 = st.number_input("Sub-Sample Measurement X2", value=float(df.iloc[-1]['X2']), format="%.4f", key=f"x2_{clean_name}")
-            v3 = st.number_input("Sub-Sample Measurement X3", value=float(df.iloc[-1]['X3']), format="%.4f", key=f"x3_{clean_name}")
-            v4 = st.number_input("Sub-Sample Measurement X4", value=float(df.iloc[-1]['X4']), format="%.4f", key=f"x4_{clean_name}")
-            v5 = st.number_input("Sub-Sample Measurement X5", value=float(df.iloc[-1]['X5']), format="%.4f", key=f"x5_{clean_name}")
+            
+            # Form defaults map clean design centers to prevent old input memorization issues
+            v1 = st.number_input("Sub-Sample Measurement X1", value=float(default_target), format="%.4f")
+            v2 = st.number_input("Sub-Sample Measurement X2", value=float(default_target), format="%.4f")
+            v3 = st.number_input("Sub-Sample Measurement X3", value=float(default_target), format="%.4f")
+            v4 = st.number_input("Sub-Sample Measurement X4", value=float(default_target), format="%.4f")
+            v5 = st.number_input("Sub-Sample Measurement X5", value=float(default_target), format="%.4f")
             
             if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
                 new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
                 df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
                 
                 df_updated.to_csv(CSV_FILE_PATH, index=False)
+                st.session_state[state_key] = df_updated
                 st.rerun()
 
 with split_col2:
