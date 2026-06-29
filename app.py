@@ -183,10 +183,12 @@ with col_sel1:
     if st.session_state["selected_size_index"] >= len(options_list):
         st.session_state["selected_size_index"] = 0
         
+    # PATCHED: Explicit key parameter bounds widget lifecycle and forces instant menu redraw
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
         options=options_list,
-        index=st.session_state["selected_size_index"]
+        index=st.session_state["selected_size_index"],
+        key="component_selector_widget"
     )
     st.session_state["selected_size_index"] = options_list.index(component_size)
 
