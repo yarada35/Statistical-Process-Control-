@@ -155,7 +155,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- DIRECTORY ISOLATION GUARDRAIL ---
-# Forces system output files into a dedicated subfolder to avoid root-level file hot-reload loops
 DATA_DIR = "data"
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
@@ -164,14 +163,12 @@ if not os.path.exists(DATA_DIR):
 MANAGER_PASSTOKEN = "ADDIS_QA_2026"
 
 # --- CONFIG HARDWARE PERSISTENCE REGISTRY FILE MANAGEMENT ---
-NEW_REGISTRY_FILE = os.path.join(DATA_DIR, "profile_registry_config.csv")
-OLD_REGISTRY_FILE = "profile_registry_config.csv"
+REGISTRY_FILE = os.path.join(DATA_DIR, "profile_registry_config.csv")
 
 def load_profile_registry():
-    # Phase 1: Try reading from the safe dynamic storage data directory
-    if os.path.exists(NEW_REGISTRY_FILE):
+    if os.path.exists(REGISTRY_FILE):
         try:
-            df_reg = pd.read_csv(NEW_REGISTRY_FILE)
+            df_reg = pd.read_csv(REGISTRY_FILE)
             registry = {}
             for _, row in df_reg.iterrows():
                 registry[str(row['profile_name'])] = {
@@ -182,34 +179,23 @@ def load_profile_registry():
                     "seed_sigma": float(row['seed_sigma'])
                 }
             if registry:
-                return registry
-        except Exception:
-            pass
-
-    # Phase 2: Fallback Migration - Extract old custom items if sitting out in the root space
-    if os.path.exists(OLD_REGISTRY_FILE):
-        try:
-            df_reg = pd.read_csv(OLD_REGISTRY_FILE)
-            registry = {}
-            for _, row in df_reg.iterrows():
-                registry[str(row['profile_name'])] = {
-                    "target": float(row['target']),
-                    "usl": float(row['usl']),
-                    "lsl": float(row['lsl']),
-                    "seed_mean": float(row['seed_mean']),
-                    "seed_sigma": float(row['seed_sigma'])
-                }
-            if registry:
-                save_profile_registry(registry)  # Permanently replicate into the correct subfolder
                 return registry
         except Exception:
             pass
             
-    # Phase 3: Generic fallback defaults if absolutely no setup history exists
+    # --- HARDCODED PRODUCTION-LOCKED BASELINE CATALOG (10 DISTINCT SIZES) ---
+    # Targets and limits are set as industry baselines; use the Manager Center to fine-tune exact decimals.
     default_registry = {
-        "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
-        "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
-        "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310}
+        "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.1600, "seed_sigma": 0.0395},
+        "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 2.0200, "seed_sigma": 0.0216},
+        "195 R15 Treadweight": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.5000, "seed_sigma": 0.0310},
+        "205 Treadweight": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.8000, "seed_sigma": 0.0400},
+        "700-16 HT-40 Treadweight": {"target": 9.8000, "usl": 10.0940, "lsl": 9.5060, "seed_mean": 9.8000, "seed_sigma": 0.0500},
+        "Rubberizing KIP Coating Gauge": {"target": 1.2000, "usl": 1.2600, "lsl": 1.1400, "seed_mean": 1.2000, "seed_sigma": 0.0100},
+        "LTR Coating Gauge": {"target": 1.5000, "usl": 1.5750, "lsl": 1.4250, "seed_mean": 1.5000, "seed_sigma": 0.0120},
+        "Size 3 Model Profile": {"target": 5.0000, "usl": 5.1500, "lsl": 4.8500, "seed_mean": 5.0000, "seed_sigma": 0.0300},
+        "Backup Custom Profile Alpha": {"target": 10.0000, "usl": 10.3000, "lsl": 9.7000, "seed_mean": 10.0000, "seed_sigma": 0.0500},
+        "Backup Custom Profile Beta": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 12.0000, "seed_sigma": 0.0600}
     }
     save_profile_registry(default_registry)
     return default_registry
@@ -225,7 +211,7 @@ def save_profile_registry(registry_dict):
             'seed_mean': data['seed_mean'],
             'seed_sigma': data['seed_sigma']
         })
-    pd.DataFrame(rows).to_csv(NEW_REGISTRY_FILE, index=False)
+    pd.DataFrame(rows).to_csv(REGISTRY_FILE, index=False)
 
 if "COMPONENT_REGISTRY" not in st.session_state:
     st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
@@ -260,7 +246,7 @@ with row_sel3:
 with row_sel4:
     tolerance_pct = st.number_input("Given Tolerance (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# Isolate production streams completely under separate files inside the data folder
+# Clean key identifiers for dynamic system tracking
 clean_size_str = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
 clean_shift_str = active_shift.split(' ')[1].lower()  
 unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
