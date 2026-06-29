@@ -177,7 +177,6 @@ col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
     options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
     
-    # Check bounds safety in case an item was manipulated
     if st.session_state["selected_size_index"] >= len(options_list):
         st.session_state["selected_size_index"] = 0
         
@@ -191,36 +190,62 @@ with col_sel1:
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- LIVE KEYBOARD RENAMING ENGINE SECTION ---
-col_rename, col_space = st.columns([2, 1])
-with col_rename:
-    # Pre-populate field with the current dropdown choice name
-    renamed_input = st.text_input("✏️ Keyboard Inline Writing: Rename Active Selection Option Name", value=component_size)
-    if renamed_input.strip() != "" and renamed_input != component_size:
-        if st.button("🔄 CONFIRM KEYBOARD NAME UPDATE"):
-            new_clean_name = renamed_input.strip()
-            # Capture data config matrix from previous name layout mapping
-            saved_config = st.session_state["COMPONENT_REGISTRY"].pop(component_size)
-            st.session_state["COMPONENT_REGISTRY"][new_clean_name] = saved_config
-            
-            # Migrate local CSV database cache file safely to avoid history loss
-            old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-            new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-            
-            if os.path.exists(f"spc_datastore_{old_csv_clean}.csv"):
-                os.rename(f"spc_datastore_{old_csv_clean}.csv", f"spc_datastore_{new_csv_clean}.csv")
-                
-            # Recompute dropdown choice context index position
-            updated_options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
-            st.session_state["selected_size_index"] = updated_options_list.index(new_clean_name)
-            st.success(f"✓ Renamed successfully to '{new_clean_name}'")
-            st.rerun()
+# Extract current configuration parameters to pre-fill the renaming interface cleanly
+current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 
-# Extract blueprint properties dynamically
-config = st.session_state["COMPONENT_REGISTRY"][component_size]
-default_target = config["target"]
-default_usl = config["usl"]
-default_lsl = config["lsl"]
+# --- RE-ENGINEERED UNBROKEN PROFILE EDIT & RENAMING MATRIX ENGINE ---
+with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core Specifications"):
+    st.markdown("<div class='management-card' style='border: 1px solid #00FF66;'>", unsafe_allow_html=True)
+    
+    # We execute inside a specialized sub-form configuration block to keep computation stable
+    with st.form(key=f"rename_specification_form_{component_size.replace(' ', '_')}"):
+        st.markdown(f"<p style='color:#FFFFFF; font-weight:bold;'>Editing Profile Target: <span style='color:#00FF66;'>{component_size}</span></p>", unsafe_allow_html=True)
+        
+        edit_name = st.text_input("✏️ Keyboard Change Name String", value=component_size)
+        
+        ec1, ec2, ec3 = st.columns(3)
+        with ec1: edit_target = ec1.number_input("Modify Target Center", value=float(current_config["target"]), format="%.4f")
+        with ec2: edit_usl = ec2.number_input("Modify Upper Spec Limit (USL)", value=float(current_config["usl"]), format="%.4f")
+        with ec3: edit_lsl = ec3.number_input("Modify Lower Spec Limit (LSL)", value=float(current_config["lsl"]), format="%.4f")
+        
+        submit_spec_changes = st.form_submit_button("⚡ EXECUTE PROFILE REWRITE & FILE RE-LINK")
+        
+        if submit_spec_changes:
+            new_clean_name = edit_name.strip()
+            if new_clean_name != "":
+                # Capture current historical parameters or generate a seed layout configuration matrix
+                old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+                new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+                
+                # Delete old index entry inside dictionary data engine safely
+                st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
+                
+                # Write back revised specifications array maps safely 
+                st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
+                    "target": edit_target,
+                    "usl": edit_usl,
+                    "lsl": edit_lsl,
+                    "seed_mean": edit_target,
+                    "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
+                }
+                
+                # Rename the file structure on the physical layer to protect current historical entries
+                if old_csv_clean != new_csv_clean:
+                    if os.path.exists(f"spc_datastore_{old_csv_clean}.csv"):
+                        try:
+                            os.rename(f"spc_datastore_{old_csv_clean}.csv", f"spc_datastore_{new_csv_clean}.csv")
+                        except Exception:
+                            pass
+                
+                # Relocate current selected drop-down option cleanly to point at updated string name
+                updated_options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
+                st.session_state["selected_size_index"] = updated_options_list.index(new_clean_name)
+                st.success(f"✓ Profile successfully updated to '{new_clean_name}' without structural layout errors.")
+                st.rerun()
+            else:
+                st.error("⚠️ Keyboard entry error: Field target validation string blank.")
+                
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
 with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
@@ -256,6 +281,12 @@ with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
         else:
             st.error("⚠️ Keyboard entry error: The text input field cannot be left blank.")
     st.markdown("</div>", unsafe_allow_html=True)
+
+# Reload active specifications cleanly to allow instant global UI rendering update
+config = st.session_state["COMPONENT_REGISTRY"][component_size]
+default_target = config["target"]
+default_usl = config["usl"]
+default_lsl = config["lsl"]
 
 # --- FILE HARDWARE PERSISTENCE ENGINE ---
 clean_name = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
@@ -410,7 +441,6 @@ with split_col1:
                 'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
             }
             
-            # Reset workflow: Flush active CSV file out back to baseline layout template
             df_fresh = generate_fresh_baseline(component_size)
             df_fresh.to_csv(CSV_FILE_PATH, index=False)
             st.rerun()
@@ -429,7 +459,6 @@ with split_col1:
                 new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
                 df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
                 
-                # Physical hardware database storage allocation
                 df_updated.to_csv(CSV_FILE_PATH, index=False)
                 st.rerun()
 
@@ -475,20 +504,16 @@ if archive_key in st.session_state:
         st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT ($C_{{pk}}$ = {m['cpk']:.4f}).** Variance profile exceeds standard deviation ceiling. Immediate mechanical verification required on head temperatures.")
         
     st.markdown("---")
-    
     st.markdown("**Archived Raw Data and Computed Limits:**")
     st.dataframe(
         arch['df'].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
         use_container_width=True
     )
-    
     st.markdown("---")
-    
     st.markdown("**Archived Analytical Control Graphs:**")
     p1, p2, p3 = st.columns([1.4, 1.4, 1.2])
     afx, afr, afs = build_plots(arch['df'], arch['flat'])
     p1.plotly_chart(afx, use_container_width=True, config={'staticPlot': True})
     p2.plotly_chart(afr, use_container_width=True, config={'staticPlot': True})
     p3.plotly_chart(afs, use_container_width=True, config={'staticPlot': True})
-    
     st.markdown("</div>", unsafe_allow_html=True)
