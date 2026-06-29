@@ -165,40 +165,19 @@ MANAGER_PASSTOKEN = "ADDIS_QA_2026"
 # --- CONFIG HARDWARE PERSISTENCE REGISTRY FILE MANAGEMENT ---
 REGISTRY_FILE = os.path.join(DATA_DIR, "profile_registry_config.csv")
 
-def load_profile_registry():
-    if os.path.exists(REGISTRY_FILE):
-        try:
-            df_reg = pd.read_csv(REGISTRY_FILE)
-            registry = {}
-            for _, row in df_reg.iterrows():
-                registry[str(row['profile_name'])] = {
-                    "target": float(row['target']),
-                    "usl": float(row['usl']),
-                    "lsl": float(row['lsl']),
-                    "seed_mean": float(row['seed_mean']),
-                    "seed_sigma": float(row['seed_sigma'])
-                }
-            if registry:
-                return registry
-        except Exception:
-            pass
-            
-    # --- HARDCODED PRODUCTION-LOCKED BASELINE CATALOG (10 DISTINCT SIZES) ---
-    # Targets and limits are set as industry baselines; use the Manager Center to fine-tune exact decimals.
-    default_registry = {
-        "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.1600, "seed_sigma": 0.0395},
-        "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 2.0200, "seed_sigma": 0.0216},
-        "195 R15 Treadweight": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.5000, "seed_sigma": 0.0310},
-        "205 Treadweight": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.8000, "seed_sigma": 0.0400},
-        "700-16 HT-40 Treadweight": {"target": 9.8000, "usl": 10.0940, "lsl": 9.5060, "seed_mean": 9.8000, "seed_sigma": 0.0500},
-        "Rubberizing KIP Coating Gauge": {"target": 1.2000, "usl": 1.2600, "lsl": 1.1400, "seed_mean": 1.2000, "seed_sigma": 0.0100},
-        "LTR Coating Gauge": {"target": 1.5000, "usl": 1.5750, "lsl": 1.4250, "seed_mean": 1.5000, "seed_sigma": 0.0120},
-        "Size 3 Model Profile": {"target": 5.0000, "usl": 5.1500, "lsl": 4.8500, "seed_mean": 5.0000, "seed_sigma": 0.0300},
-        "Backup Custom Profile Alpha": {"target": 10.0000, "usl": 10.3000, "lsl": 9.7000, "seed_mean": 10.0000, "seed_sigma": 0.0500},
-        "Backup Custom Profile Beta": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 12.0000, "seed_sigma": 0.0600}
-    }
-    save_profile_registry(default_registry)
-    return default_registry
+# 10 DEFINITIVE MASTER SIZES PRE-BAKED TO INSURE IMMUNITY FROM LOSS
+MASTER_FACTORY_BASICS = {
+    "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.1600, "seed_sigma": 0.0395},
+    "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 2.0200, "seed_sigma": 0.0216},
+    "195 R15 Treadweight": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.5000, "seed_sigma": 0.0310},
+    "205 Treadweight": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.8000, "seed_sigma": 0.0400},
+    "700-16 HT-40 Treadweight": {"target": 9.8000, "usl": 10.0940, "lsl": 9.5060, "seed_mean": 9.8000, "seed_sigma": 0.0500},
+    "Rubberizing KIP Coating Gauge": {"target": 1.2000, "usl": 1.2600, "lsl": 1.1400, "seed_mean": 1.2000, "seed_sigma": 0.0100},
+    "LTR Coating Gauge": {"target": 1.5000, "usl": 1.5750, "lsl": 1.4250, "seed_mean": 1.5000, "seed_sigma": 0.0120},
+    "Size 3 Model Profile": {"target": 5.0000, "usl": 5.1500, "lsl": 4.8500, "seed_mean": 5.0000, "seed_sigma": 0.0300},
+    "Backup Custom Profile Alpha": {"target": 10.0000, "usl": 10.3000, "lsl": 9.7000, "seed_mean": 10.0000, "seed_sigma": 0.0500},
+    "Backup Custom Profile Beta": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 12.0000, "seed_sigma": 0.0600}
+}
 
 def save_profile_registry(registry_dict):
     rows = []
@@ -213,7 +192,40 @@ def save_profile_registry(registry_dict):
         })
     pd.DataFrame(rows).to_csv(REGISTRY_FILE, index=False)
 
+def load_profile_registry():
+    # If the file already exists, pull from it to catch changes or newly added items
+    current_registry = {}
+    if os.path.exists(REGISTRY_FILE):
+        try:
+            df_reg = pd.read_csv(REGISTRY_FILE)
+            for _, row in df_reg.iterrows():
+                current_registry[str(row['profile_name'])] = {
+                    "target": float(row['target']),
+                    "usl": float(row['usl']),
+                    "lsl": float(row['lsl']),
+                    "seed_mean": float(row['seed_mean']),
+                    "seed_sigma": float(row['seed_sigma'])
+                }
+        except Exception:
+            pass
+
+    # ENFORCEMENT LOOP: Loop through all 10 critical baselines. If any were deleted or dropped, inject them back.
+    updated = False
+    for master_key, master_val in MASTER_FACTORY_BASICS.items():
+        if master_key not in current_registry:
+            current_registry[master_key] = master_val
+            updated = True
+            
+    if updated or not os.path.exists(REGISTRY_FILE):
+        save_profile_registry(current_registry)
+        
+    return current_registry
+
+# Enforce active checking layout setup memory
 if "COMPONENT_REGISTRY" not in st.session_state:
+    st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
+else:
+    # Continuously synchronize registry state with storage to prevent memory state drift crashes
     st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
 
 options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
@@ -246,7 +258,7 @@ with row_sel3:
 with row_sel4:
     tolerance_pct = st.number_input("Given Tolerance (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# Clean key identifiers for dynamic system tracking
+# Dynamic data file tracking
 clean_size_str = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
 clean_shift_str = active_shift.split(' ')[1].lower()  
 unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
@@ -284,12 +296,15 @@ with st.expander("🔐 Manager Authorization Center: Modify Dropdowns & Product 
                 elif edit_lsl >= edit_target or edit_usl <= edit_target or edit_lsl >= edit_usl:
                     st.error("❌ Limit logic error: Ensure LSL < Target < USL.")
                 else:
-                    st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
-                    st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
+                    # Update local state dictionary and sync directly to standard CSV catalog file
+                    temp_registry = load_profile_registry()
+                    temp_registry.pop(component_size, None)
+                    temp_registry[new_clean_name] = {
                         "target": edit_target, "usl": edit_usl, "lsl": edit_lsl,
                         "seed_mean": edit_target, "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
                     }
-                    save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
+                    save_profile_registry(temp_registry)
+                    st.session_state["COMPONENT_REGISTRY"] = temp_registry
                     st.session_state["active_profile_name"] = new_clean_name
                     st.success("✓ Profile blueprint committed to configuration database.")
                     st.rerun()
@@ -305,11 +320,13 @@ with st.expander("🔐 Manager Authorization Center: Modify Dropdowns & Product 
         if st.button("💾 SAVE CUSTOM CONFIGURATION TO REGISTRY"):
             cleaned_input_name = new_size_name.strip()
             if cleaned_input_name != "" and cleaned_input_name not in st.session_state["COMPONENT_REGISTRY"]:
-                st.session_state["COMPONENT_REGISTRY"][cleaned_input_name] = {
+                temp_registry = load_profile_registry()
+                temp_registry[cleaned_input_name] = {
                     "target": new_target, "usl": new_usl, "lsl": new_lsl,
                     "seed_mean": new_target, "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
                 }
-                save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
+                save_profile_registry(temp_registry)
+                st.session_state["COMPONENT_REGISTRY"] = temp_registry
                 st.session_state["active_profile_name"] = cleaned_input_name
                 st.success(f"✓ '{cleaned_input_name}' added to dropdown catalog registry.")
                 st.rerun()
