@@ -134,6 +134,15 @@ st.markdown("""
         text-align: center;
         margin-bottom: 10px;
     }
+
+    /* Custom sizing addition area layout */
+    .management-card {
+        background-color: #0D1117 !important;
+        border: 1px solid #FFBB00 !important;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -145,36 +154,62 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- INFINITELY EXPANDABLE COMPONENT REGISTRY MATRIX ---
-COMPONENT_REGISTRY = {
-    "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
-    "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
-    "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310},
-    "Size 4 Model Profile": {"target": 8.2000, "usl": 8.4460, "lsl": 7.9540, "seed_mean": 8.1920, "seed_sigma": 0.0280},
-    "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190},
-    "Size 6 Model Profile": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.7880, "seed_sigma": 0.0250},
-    "Size 7 Model Profile": {"target": 9.4000, "usl": 9.6820, "lsl": 9.1180, "seed_mean": 9.3850, "seed_sigma": 0.0340},
-    "Size 8 Model Profile": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 11.9750, "seed_sigma": 0.0410},
-    "Size 9 Model Profile": {"target": 4.7500, "usl": 4.8925, "lsl": 4.6075, "seed_mean": 4.7350, "seed_sigma": 0.0220},
-    "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
-}
+# --- IN-MEMORY REGISTRY SYNC PLATFORM ---
+if "COMPONENT_REGISTRY" not in st.session_state:
+    st.session_state["COMPONENT_REGISTRY"] = {
+        "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
+        "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
+        "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310},
+        "Size 4 Model Profile": {"target": 8.2000, "usl": 8.4460, "lsl": 7.9540, "seed_mean": 8.1920, "seed_sigma": 0.0280},
+        "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190},
+        "Size 6 Model Profile": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.7880, "seed_sigma": 0.0250},
+        "Size 7 Model Profile": {"target": 9.4000, "usl": 9.6820, "lsl": 9.1180, "seed_mean": 9.3850, "seed_sigma": 0.0340},
+        "Size 8 Model Profile": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 11.9750, "seed_sigma": 0.0410},
+        "Size 9 Model Profile": {"target": 4.7500, "usl": 4.8925, "lsl": 4.6075, "seed_mean": 4.7350, "seed_sigma": 0.0220},
+        "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
+    }
 
 # --- ACTIVE COMPONENT SELECTION MATRIX ---
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
-        list(COMPONENT_REGISTRY.keys())
+        list(st.session_state["COMPONENT_REGISTRY"].keys())
     )
 
-# Extract standard blueprint properties dynamically
-config = COMPONENT_REGISTRY[component_size]
+# Extract blueprint properties dynamically
+config = st.session_state["COMPONENT_REGISTRY"][component_size]
 default_target = config["target"]
 default_usl = config["usl"]
 default_lsl = config["lsl"]
 
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
+
+# --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
+with st.expander("➕ Define & Add New Component Size Profile To Registry"):
+    st.markdown("<div class='management-card'>", unsafe_allow_html=True)
+    new_size_name = st.text_input("New Component Unique Name (e.g., Size 11 HT-100)", placeholder="Type size signature...")
+    
+    nc1, nc2, nc3 = st.columns(3)
+    with nc1: new_target = nc1.number_input("Design Target Value", value=10.0000, format="%.4f")
+    with nc2: new_usl = nc2.number_input("Upper Spec Limit (USL)", value=10.3000, format="%.4f")
+    with nc3: new_lsl = nc3.number_input("Lower Spec Limit (LSL)", value=9.7000, format="%.4f")
+    
+    if st.button("💾 COMMIT NEW SIZE TO PRODUCTION REGISTRY"):
+        if new_size_name.strip() != "" and new_size_name not in st.session_state["COMPONENT_REGISTRY"]:
+            st.session_state["COMPONENT_REGISTRY"][new_size_name] = {
+                "target": new_target,
+                "usl": new_usl,
+                "lsl": new_lsl,
+                "seed_mean": new_target * 0.99,
+                "seed_sigma": (new_usl - new_lsl) / 10.0
+            }
+            st.success(f"✓ Registered '{new_size_name}' successfully into tracking matrix.")
+            st.rerun()
+        else:
+            st.error("⚠️ Invalid entry. Name empty or already exists.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- FILE HARDWARE PERSISTENCE ENGINE ---
 clean_name = component_size.replace(' ', '_').replace('-', '_')
@@ -183,13 +218,13 @@ CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
 def generate_fresh_baseline(size_label):
     np.random.seed(42)
     base_data = []
-    cfg = COMPONENT_REGISTRY[size_label]
+    cfg = st.session_state["COMPONENT_REGISTRY"][size_label]
     for i in range(1, 2):
         row_vals = np.random.normal(cfg["seed_mean"], cfg["seed_sigma"], 5)
         base_data.append([i] + list(row_vals))
     return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# Hardware IO Safe Reading Protocols
+# Safe IO Verification Logic
 if os.path.exists(CSV_FILE_PATH):
     try:
         df_active = pd.read_csv(CSV_FILE_PATH)
@@ -200,7 +235,6 @@ else:
     df_active = generate_fresh_baseline(component_size)
     df_active.to_csv(CSV_FILE_PATH, index=False)
 
-# Sync current size dataframe context directly into memory state fields
 state_key = f"dataset_{clean_name}"
 archive_key = f"archive_{clean_name}"
 st.session_state[state_key] = df_active
@@ -215,7 +249,7 @@ with c4: d2 = st.number_input("Shewhart d2", value=2.3330, format="%.4f")
 with c5: A2 = st.number_input("Shewhart A2", value=0.5770, format="%.4f")
 with c6: D4 = st.number_input("Shewhart D4", value=2.1150, format="%.4f")
 
-# Calculations for dynamic target tolerances
+# Tolerance limits evaluation math
 calculated_tolerance = target * (tolerance_pct / 100.0)
 tol_max_val = target - calculated_tolerance
 tol_min_val = target + calculated_tolerance
@@ -330,7 +364,7 @@ with split_col1:
                 'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
             }
             
-            # Reset workflow: Flush out active CSV back to baseline sample row 1 layout
+            # Reset workflow: Flush active CSV file out back to baseline layout template
             df_fresh = generate_fresh_baseline(component_size)
             df_fresh.to_csv(CSV_FILE_PATH, index=False)
             st.rerun()
@@ -349,7 +383,7 @@ with split_col1:
                 new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
                 df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
                 
-                # Physical disk pipeline persistence write commitment
+                # Physical hardware database storage allocation
                 df_updated.to_csv(CSV_FILE_PATH, index=False)
                 st.rerun()
 
