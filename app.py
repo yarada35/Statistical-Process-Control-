@@ -10,7 +10,7 @@ st.set_page_config(page_title="Horizon Addis Tyre - SPC Center", layout="wide")
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght=400;700&family=Share+Tech+Mono&display=swap');
     
     html, body, [data-testid="stAppViewContainer"] {
         background-color: #0A0A0C !important;
@@ -172,7 +172,6 @@ if "COMPONENT_REGISTRY" not in st.session_state:
 if "selected_size_index" not in st.session_state:
     st.session_state["selected_size_index"] = 0
 
-# Track previous component selection to detect when a drop-down switch occurs
 if "previous_component_selection" not in st.session_state:
     st.session_state["previous_component_selection"] = ""
 
@@ -194,10 +193,8 @@ with col_sel1:
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- DETECT SWAP: Reset cached memory variables instantly if selection changes ---
 if st.session_state["previous_component_selection"] != component_size:
     st.session_state["previous_component_selection"] = component_size
-    # Clear out any leftover form data values sitting inside memory states
     old_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
     st.session_state.pop(f"dataset_{old_clean}", None)
 
@@ -225,12 +222,10 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                 old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 
-                # Clear session state data frames so fresh configs render immediately 
                 st.session_state.pop(f"dataset_{old_csv_clean}", None)
                 st.session_state.pop(f"dataset_{new_csv_clean}", None)
                 st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
                 
-                # Register rewritten values
                 st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
                     "target": edit_target,
                     "usl": edit_usl,
@@ -239,7 +234,6 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                     "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
                 }
                 
-                # Physical Layer Rename logic
                 if old_csv_clean != new_csv_clean:
                     if os.path.exists(f"spc_datastore_{old_csv_clean}.csv"):
                         try:
@@ -253,24 +247,6 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                 st.rerun()
             else:
                 st.error("⚠️ Keyboard entry error: Field target validation string blank.")
-                
-    st.markdown("---")
-    # --- PHYSICAL LAYER DELETE & RESET BUTTON ---
-    st.markdown("<p style='color:#FF3333; font-weight:bold; font-size:12px;'>⚠️ DANGER ZONE: CORE RECORD PURGE</p>", unsafe_allow_html=True)
-    if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY & RESTART AT SAMPLE #1"):
-        purge_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-        target_csv_file = f"spc_datastore_{purge_clean}.csv"
-        
-        # Kill physical file copy
-        if os.path.exists(target_csv_file):
-            os.remove(target_csv_file)
-            
-        # Clear out fast runtime memory registers
-        st.session_state.pop(f"dataset_{purge_clean}", None)
-        st.session_state.pop(f"archive_{purge_clean}", None)
-        st.success(f"💥 Datastore history for '{component_size}' cleared completely. Counter reset to 1.")
-        st.rerun()
-        
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
@@ -308,6 +284,24 @@ with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
             st.error("⚠️ Keyboard entry error: The text input field cannot be left blank.")
     st.markdown("</div>", unsafe_allow_html=True)
 
+# --- ISO-BALANCED EXPANDED DANGER ZONE CONTROL (PREVENTS STICKY COMPONENT OVERLAYS) ---
+with st.expander("⚠️ DANGER ZONE: CORE RECORD PURGE & HISTORY WIPE"):
+    st.markdown("<div class='management-card' style='border: 1px solid #FF3333;'>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:#FFFFFF;'>You are about to completely wipe all active history data logs and files for: <b style='color:#FF3333;'>{component_size}</b></p>", unsafe_allow_html=True)
+    
+    if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY & RESTART AT SAMPLE #1", key="isolated_danger_purge_btn"):
+        purge_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+        target_csv_file = f"spc_datastore_{purge_clean}.csv"
+        
+        if os.path.exists(target_csv_file):
+            os.remove(target_csv_file)
+            
+        st.session_state.pop(f"dataset_{purge_clean}", None)
+        st.session_state.pop(f"archive_{purge_clean}", None)
+        st.success(f"💥 Datastore history for '{component_size}' cleared completely. Counter reset to 1.")
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
 # Reload active specifications cleanly to allow instant global UI rendering update
 config = st.session_state["COMPONENT_REGISTRY"][component_size]
 default_target = config["target"]
@@ -320,14 +314,12 @@ CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
 
 def generate_fresh_baseline(size_label):
     cfg = st.session_state["COMPONENT_REGISTRY"][size_label]
-    # ALWAYS start fresh with a single default row at index #1
     base_data = [[1, cfg["target"], cfg["target"], cfg["target"], cfg["target"], cfg["target"]]]
     return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
 state_key = f"dataset_{clean_name}"
 archive_key = f"archive_{clean_name}"
 
-# Check for storage maps cleanly
 if state_key not in st.session_state:
     if os.path.exists(CSV_FILE_PATH):
         try:
@@ -352,7 +344,6 @@ with c4: d2 = st.number_input("Shewhart d2", value=2.3330, format="%.4f")
 with c5: A2 = st.number_input("Shewhart A2", value=0.5770, format="%.4f")
 with c6: D4 = st.number_input("Shewhart D4", value=2.1150, format="%.4f")
 
-# Tolerance limits evaluation math
 calculated_tolerance = target * (tolerance_pct / 100.0)
 tol_max_val = target - calculated_tolerance
 tol_min_val = target + calculated_tolerance
@@ -382,7 +373,6 @@ ucl_r = D4 * average_range
 lcl_r = 0.0
 gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0437
 
-# --- HELPER: GENERATE PROCESS VISUAL OBJECTS ---
 def build_plots(data_frame, flat_array):
     fig_x = go.Figure()
     fig_x.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
@@ -474,12 +464,10 @@ with split_col1:
     else:
         st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 inputs. Current Batch Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
         
-        # Use clean form identity keys to break cached layout repetition bugs
         with st.form(key=f"data_entry_form_{clean_name}_{current_subgroups}"):
             next_id = current_subgroups + 1
             st.markdown(f"<div style='color:#FFFFFF; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</div>", unsafe_allow_html=True)
             
-            # Form defaults map clean design centers to prevent old input memorization issues
             v1 = st.number_input("Sub-Sample Measurement X1", value=float(default_target), format="%.4f")
             v2 = st.number_input("Sub-Sample Measurement X2", value=float(default_target), format="%.4f")
             v3 = st.number_input("Sub-Sample Measurement X3", value=float(default_target), format="%.4f")
