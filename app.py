@@ -154,9 +154,29 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- IN-MEMORY REGISTRY SYNC PLATFORM (FULL 10 BASELINE PROFILES) ---
-if "COMPONENT_REGISTRY" not in st.session_state:
-    st.session_state["COMPONENT_REGISTRY"] = {
+# --- CONFIG HARDWARE PERSISTENCE REGISTRY FILE MANAGEMENT ---
+REGISTRY_FILE = "profile_registry_config.csv"
+
+def load_profile_registry():
+    if os.path.exists(REGISTRY_FILE):
+        try:
+            df_reg = pd.read_csv(REGISTRY_FILE)
+            registry = {}
+            for _, row in df_reg.iterrows():
+                registry[str(row['profile_name'])] = {
+                    "target": float(row['target']),
+                    "usl": float(row['usl']),
+                    "lsl": float(row['lsl']),
+                    "seed_mean": float(row['seed_mean']),
+                    "seed_sigma": float(row['seed_sigma'])
+                }
+            if registry:  # Return if successfully parsed populated files
+                return registry
+        except Exception:
+            pass
+            
+    # Fallback default catalog if configuration data doesn't exist yet
+    default_registry = {
         "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
         "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
         "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310},
@@ -168,10 +188,28 @@ if "COMPONENT_REGISTRY" not in st.session_state:
         "Size 9 Model Profile": {"target": 4.7500, "usl": 4.8925, "lsl": 4.6075, "seed_mean": 4.7350, "seed_sigma": 0.0220},
         "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
     }
+    save_profile_registry(default_registry)
+    return default_registry
+
+def save_profile_registry(registry_dict):
+    rows = []
+    for name, data in registry_dict.items():
+        rows.append({
+            'profile_name': name,
+            'target': data['target'],
+            'usl': data['usl'],
+            'lsl': data['lsl'],
+            'seed_mean': data['seed_mean'],
+            'seed_sigma': data['seed_sigma']
+        })
+    pd.DataFrame(rows).to_csv(REGISTRY_FILE, index=False)
+
+# Load master dictionary from storage file
+if "COMPONENT_REGISTRY" not in st.session_state:
+    st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
 
 options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
 
-# FIX: Initialize active selection via pure string tracking to protect state boundaries
 if "active_profile_name" not in st.session_state or st.session_state["active_profile_name"] not in options_list:
     st.session_state["active_profile_name"] = options_list[0]
 
@@ -181,9 +219,7 @@ if "previous_component_selection" not in st.session_state:
 # --- ACTIVE COMPONENT SELECTION MATRIX ---
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
-    # Find current index dynamically based on state value
     current_idx = options_list.index(st.session_state["active_profile_name"])
-    
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
         options=options_list,
@@ -223,10 +259,14 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                 old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 
+                # Clear active cached sessions
                 st.session_state.pop(f"dataset_{old_csv_clean}", None)
                 st.session_state.pop(f"dataset_{new_csv_clean}", None)
+                
+                # Pop out original name tag to achieve complete rename execution (preventing layout duplicates)
                 st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
                 
+                # Write back into tracking state
                 st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
                     "target": edit_target,
                     "usl": edit_usl,
@@ -235,6 +275,9 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                     "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
                 }
                 
+                # Commit updates instantly to local csv database configuration file
+                save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
+                
                 if old_csv_clean != new_csv_clean:
                     if os.path.exists(f"spc_datastore_{old_csv_clean}.csv"):
                         try:
@@ -242,7 +285,6 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                         except Exception:
                             pass
                 
-                # FIX: Bypasses mutation restrictions by using decoupled text state mapping 
                 st.session_state["active_profile_name"] = new_clean_name
                 st.success(f"✓ Profile successfully updated to '{new_clean_name}'")
                 st.rerun()
@@ -276,11 +318,13 @@ with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
                     "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
                 }
                 
+                # Save registry persistently to disk storage file
+                save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
+                
                 new_clean = cleaned_input_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 st.session_state.pop(f"dataset_{new_clean}", None)
                 st.session_state.pop(f"archive_{new_clean}", None)
                 
-                # FIX: Sync safely via the decoupled text value mapping strategy
                 st.session_state["active_profile_name"] = cleaned_input_name
                 st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
                 st.rerun()
@@ -447,7 +491,7 @@ st.markdown(f"""
         <td class="lateral-cell"><div class="cell-label">Gen. Movement</div><div class="cell-value">{gen_movement:.4f}</div><div class="cell-desc">G. Stepwise standard error change value between subgroups.</div></td>
         <td class="lateral-cell"><div class="cell-label">Span Total</div><div class="cell-value">{span_obs:.4f}</div><div class="cell-desc">H. Absolute width between single highest and lowest point.</div></td>
         <td class="lateral-cell"><div class="cell-label">Grand Median</div><div class="cell-value">{grand_median:.4f}</div><div class="cell-desc">I. Midpoint value splitting the sorted observation array.</div></td>
-        <td class="lateral-cell"><div class="cell-label">Obs Variance</div><div class="cell-value">{variance_obs:.66f}</div><div class="cell-desc">J. Statistical variance (Sigma squared) of all active points.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Obs Variance</div><div class="cell-value">{variance_obs:.6f}</div><div class="cell-desc">J. Statistical variance (Sigma squared) of all active points.</div></td>
     </tr>
     <tr>
         <td class="lateral-cell"><div class="cell-label">Obs Max Value</div><div class="cell-value">{obs_max:.4f}</div><div class="cell-desc">K. Highest single raw component measurement found.</div></td>
