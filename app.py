@@ -169,7 +169,6 @@ if "COMPONENT_REGISTRY" not in st.session_state:
         "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
     }
 
-# Track currently selected option across reruns cleanly
 if "selected_size_index" not in st.session_state:
     st.session_state["selected_size_index"] = 0
 
@@ -177,13 +176,45 @@ if "selected_size_index" not in st.session_state:
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
     options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
+    
+    # Check bounds safety in case an item was manipulated
+    if st.session_state["selected_size_index"] >= len(options_list):
+        st.session_state["selected_size_index"] = 0
+        
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
         options=options_list,
         index=st.session_state["selected_size_index"]
     )
-    # Sync current selection index back to state management
     st.session_state["selected_size_index"] = options_list.index(component_size)
+
+with col_sel2:
+    tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
+
+# --- LIVE KEYBOARD RENAMING ENGINE SECTION ---
+col_rename, col_space = st.columns([2, 1])
+with col_rename:
+    # Pre-populate field with the current dropdown choice name
+    renamed_input = st.text_input("✏️ Keyboard Inline Writing: Rename Active Selection Option Name", value=component_size)
+    if renamed_input.strip() != "" and renamed_input != component_size:
+        if st.button("🔄 CONFIRM KEYBOARD NAME UPDATE"):
+            new_clean_name = renamed_input.strip()
+            # Capture data config matrix from previous name layout mapping
+            saved_config = st.session_state["COMPONENT_REGISTRY"].pop(component_size)
+            st.session_state["COMPONENT_REGISTRY"][new_clean_name] = saved_config
+            
+            # Migrate local CSV database cache file safely to avoid history loss
+            old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+            new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+            
+            if os.path.exists(f"spc_datastore_{old_csv_clean}.csv"):
+                os.rename(f"spc_datastore_{old_csv_clean}.csv", f"spc_datastore_{new_csv_clean}.csv")
+                
+            # Recompute dropdown choice context index position
+            updated_options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
+            st.session_state["selected_size_index"] = updated_options_list.index(new_clean_name)
+            st.success(f"✓ Renamed successfully to '{new_clean_name}'")
+            st.rerun()
 
 # Extract blueprint properties dynamically
 config = st.session_state["COMPONENT_REGISTRY"][component_size]
@@ -191,17 +222,12 @@ default_target = config["target"]
 default_usl = config["usl"]
 default_lsl = config["lsl"]
 
-with col_sel2:
-    tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
-
-# --- INTERACTIVE KEYBOARD TEXT ENTRY CARD ---
-with st.expander("➕ Define & Type New Custom Component Size Profile"):
+# --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
+with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
     st.markdown("<div class='management-card'>", unsafe_allow_html=True)
-    
-    # Text field specifically designed for direct keyboard text entry
     new_size_name = st.text_input(
-        "✏️ Keyboard Input: Type Custom Size Dimension String Name", 
-        placeholder="e.g., 12.00-20 HC-22 Tread",
+        "⌨️ Setup Initial Profile Unique Name Signature String", 
+        placeholder="e.g., Size 11 Variant Profile",
         key="keyboard_size_input"
     )
     
@@ -221,7 +247,6 @@ with st.expander("➕ Define & Type New Custom Component Size Profile"):
                     "seed_mean": new_target,
                     "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
                 }
-                # Force drop down selector index onto newly configured size profile target
                 updated_options = list(st.session_state["COMPONENT_REGISTRY"].keys())
                 st.session_state["selected_size_index"] = updated_options.index(cleaned_input_name)
                 st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
