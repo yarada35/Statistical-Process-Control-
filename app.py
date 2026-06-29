@@ -154,37 +154,42 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- IN-MEMORY REGISTRY SYNC PLATFORM ---
+# --- IN-MEMORY REGISTRY SYNC PLATFORM (FULL 10 BASELINE PROFILES) ---
 if "COMPONENT_REGISTRY" not in st.session_state:
     st.session_state["COMPONENT_REGISTRY"] = {
         "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
         "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
         "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310},
         "Size 4 Model Profile": {"target": 8.2000, "usl": 8.4460, "lsl": 7.9540, "seed_mean": 8.1920, "seed_sigma": 0.0280},
-        "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190}
+        "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190},
+        "Size 6 Model Profile": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.7880, "seed_sigma": 0.0250},
+        "Size 7 Model Profile": {"target": 9.4000, "usl": 9.6820, "lsl": 9.1180, "seed_mean": 9.3850, "seed_sigma": 0.0340},
+        "Size 8 Model Profile": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 11.9750, "seed_sigma": 0.0410},
+        "Size 9 Model Profile": {"target": 4.7500, "usl": 4.8925, "lsl": 4.6075, "seed_mean": 4.7350, "seed_sigma": 0.0220},
+        "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
     }
 
-if "selected_size_index" not in st.session_state:
-    st.session_state["selected_size_index"] = 0
+options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
+
+# FIX: Initialize active selection via pure string tracking to protect state boundaries
+if "active_profile_name" not in st.session_state or st.session_state["active_profile_name"] not in options_list:
+    st.session_state["active_profile_name"] = options_list[0]
 
 if "previous_component_selection" not in st.session_state:
     st.session_state["previous_component_selection"] = ""
 
-options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
-
 # --- ACTIVE COMPONENT SELECTION MATRIX ---
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
-    if st.session_state["selected_size_index"] >= len(options_list):
-        st.session_state["selected_size_index"] = 0
-        
+    # Find current index dynamically based on state value
+    current_idx = options_list.index(st.session_state["active_profile_name"])
+    
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
         options=options_list,
-        index=st.session_state["selected_size_index"],
-        key="component_selector_widget"
+        index=current_idx
     )
-    st.session_state["selected_size_index"] = options_list.index(component_size)
+    st.session_state["active_profile_name"] = component_size
 
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
@@ -200,7 +205,7 @@ current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core Specifications"):
     st.markdown("<div class='management-card' style='border: 1px solid #00FF66;'>", unsafe_allow_html=True)
     
-    with st.form(key=f"rename_specification_form_{component_size.replace(' ', '_')}"):
+    with st.form(key=f"rename_specification_form_{component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')}"):
         st.markdown(f"<p style='color:#FFFFFF; font-weight:bold;'>Editing Profile Target: <span style='color:#00FF66;'>{component_size}</span></p>", unsafe_allow_html=True)
         
         edit_name = st.text_input("✏️ Keyboard Change Name String", value=component_size)
@@ -237,9 +242,8 @@ with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core 
                         except Exception:
                             pass
                 
-                updated_options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
-                st.session_state["selected_size_index"] = updated_options_list.index(new_clean_name)
-                st.session_state["component_selector_widget"] = new_clean_name
+                # FIX: Bypasses mutation restrictions by using decoupled text state mapping 
+                st.session_state["active_profile_name"] = new_clean_name
                 st.success(f"✓ Profile successfully updated to '{new_clean_name}'")
                 st.rerun()
             else:
@@ -272,15 +276,12 @@ with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
                     "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
                 }
                 
-                # FIX: Pre-clear stale dataset session structures and sync components instantly
                 new_clean = cleaned_input_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
                 st.session_state.pop(f"dataset_{new_clean}", None)
                 st.session_state.pop(f"archive_{new_clean}", None)
                 
-                updated_options = list(st.session_state["COMPONENT_REGISTRY"].keys())
-                st.session_state["selected_size_index"] = updated_options.index(cleaned_input_name)
-                st.session_state["component_selector_widget"] = cleaned_input_name
-                
+                # FIX: Sync safely via the decoupled text value mapping strategy
+                st.session_state["active_profile_name"] = cleaned_input_name
                 st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
                 st.rerun()
             else:
@@ -317,7 +318,6 @@ default_lsl = config["lsl"]
 clean_name = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
 CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
 
-# FIX: Return a completely empty dataframe schema (0 rows) so Sample #1 must be manually typed
 def generate_fresh_baseline():
     return pd.DataFrame(columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
@@ -380,7 +380,6 @@ if not df.empty:
     lcl_r = 0.0
     gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0000
 else:
-    # Safe fallback constants for empty registries
     total_obs = 0
     grand_mean = target
     average_range = 0.0000
@@ -448,7 +447,7 @@ st.markdown(f"""
         <td class="lateral-cell"><div class="cell-label">Gen. Movement</div><div class="cell-value">{gen_movement:.4f}</div><div class="cell-desc">G. Stepwise standard error change value between subgroups.</div></td>
         <td class="lateral-cell"><div class="cell-label">Span Total</div><div class="cell-value">{span_obs:.4f}</div><div class="cell-desc">H. Absolute width between single highest and lowest point.</div></td>
         <td class="lateral-cell"><div class="cell-label">Grand Median</div><div class="cell-value">{grand_median:.4f}</div><div class="cell-desc">I. Midpoint value splitting the sorted observation array.</div></td>
-        <td class="lateral-cell"><div class="cell-label">Obs Variance</div><div class="cell-value">{variance_obs:.6f}</div><div class="cell-desc">J. Statistical variance (Sigma squared) of all active points.</div></td>
+        <td class="lateral-cell"><div class="cell-label">Obs Variance</div><div class="cell-value">{variance_obs:.66f}</div><div class="cell-desc">J. Statistical variance (Sigma squared) of all active points.</div></td>
     </tr>
     <tr>
         <td class="lateral-cell"><div class="cell-label">Obs Max Value</div><div class="cell-value">{obs_max:.4f}</div><div class="cell-desc">K. Highest single raw component measurement found.</div></td>
