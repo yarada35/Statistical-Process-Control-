@@ -145,38 +145,51 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# --- INFINITELY EXPANDABLE COMPONENT REGISTRY MATRIX ---
+COMPONENT_REGISTRY = {
+    "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
+    "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
+    "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310},
+    "Size 4 Model Profile": {"target": 8.2000, "usl": 8.4460, "lsl": 7.9540, "seed_mean": 8.1920, "seed_sigma": 0.0280},
+    "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190},
+    "Size 6 Model Profile": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.7880, "seed_sigma": 0.0250},
+    "Size 7 Model Profile": {"target": 9.4000, "usl": 9.6820, "lsl": 9.1180, "seed_mean": 9.3850, "seed_sigma": 0.0340},
+    "Size 8 Model Profile": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 11.9750, "seed_sigma": 0.0410},
+    "Size 9 Model Profile": {"target": 4.7500, "usl": 4.8925, "lsl": 4.6075, "seed_mean": 4.7350, "seed_sigma": 0.0220},
+    "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
+}
+
 # --- ACTIVE COMPONENT SELECTION MATRIX ---
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
     component_size = st.selectbox(
         "📂 Active Component Model & Dimension Selector",
-        ["750-16 HT-99 Treadweight", "400-8 HT-60 Treadweight"]
+        list(COMPONENT_REGISTRY.keys())
     )
 
-if "750-16" in component_size:
-    default_target, default_usl, default_lsl = 11.1600, 11.4948, 10.8252
-else:
-    default_target, default_usl, default_lsl = 2.0200, 2.0806, 1.9594
+# Extract standard blueprint properties dynamically
+config = COMPONENT_REGISTRY[component_size]
+default_target = config["target"]
+default_usl = config["usl"]
+default_lsl = config["lsl"]
 
 with col_sel2:
     tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-# --- FILE HARDWARE PERSISTENCE CONFIGURATION ---
+# --- FILE HARDWARE PERSISTENCE ENGINE ---
 clean_name = component_size.replace(' ', '_').replace('-', '_')
 CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
 
 def generate_fresh_baseline(size_label):
     np.random.seed(42)
     base_data = []
+    cfg = COMPONENT_REGISTRY[size_label]
     for i in range(1, 2):
-        if "750-16" in size_label:
-            row_vals = np.random.normal(11.0137, 0.0395, 5)
-        else:
-            row_vals = np.random.normal(1.9989, 0.0216, 5)
+        row_vals = np.random.normal(cfg["seed_mean"], cfg["seed_sigma"], 5)
         base_data.append([i] + list(row_vals))
     return pd.DataFrame(base_data, columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# Persistent Storage Initialization Protocol
+# Hardware IO Safe Reading Protocols
 if os.path.exists(CSV_FILE_PATH):
     try:
         df_active = pd.read_csv(CSV_FILE_PATH)
@@ -187,7 +200,7 @@ else:
     df_active = generate_fresh_baseline(component_size)
     df_active.to_csv(CSV_FILE_PATH, index=False)
 
-# Mirror local session state variable to file contents
+# Sync current size dataframe context directly into memory state fields
 state_key = f"dataset_{clean_name}"
 archive_key = f"archive_{clean_name}"
 st.session_state[state_key] = df_active
@@ -202,7 +215,7 @@ with c4: d2 = st.number_input("Shewhart d2", value=2.3330, format="%.4f")
 with c5: A2 = st.number_input("Shewhart A2", value=0.5770, format="%.4f")
 with c6: D4 = st.number_input("Shewhart D4", value=2.1150, format="%.4f")
 
-# Dynamic Calculations Core
+# Calculations for dynamic target tolerances
 calculated_tolerance = target * (tolerance_pct / 100.0)
 tol_max_val = target - calculated_tolerance
 tol_min_val = target + calculated_tolerance
@@ -317,7 +330,7 @@ with split_col1:
                 'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
             }
             
-            # Reset workflow: Clean the file out back to the default Row #1 pattern
+            # Reset workflow: Flush out active CSV back to baseline sample row 1 layout
             df_fresh = generate_fresh_baseline(component_size)
             df_fresh.to_csv(CSV_FILE_PATH, index=False)
             st.rerun()
@@ -325,7 +338,7 @@ with split_col1:
         st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 inputs. Current Batch Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
         with st.form(key=f"form_{clean_name}", clear_on_submit=True):
             next_id = current_subgroups + 1
-            st.markdown(f"<span style='color:#FFFFFF; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</span>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color:#FFFFFF; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</div>", unsafe_allow_html=True)
             v1 = st.number_input("Sub-Sample Measurement X1", value=float(df.iloc[-1]['X1']), format="%.4f", key=f"x1_{clean_name}")
             v2 = st.number_input("Sub-Sample Measurement X2", value=float(df.iloc[-1]['X2']), format="%.4f", key=f"x2_{clean_name}")
             v3 = st.number_input("Sub-Sample Measurement X3", value=float(df.iloc[-1]['X3']), format="%.4f", key=f"x3_{clean_name}")
@@ -336,7 +349,7 @@ with split_col1:
                 new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
                 df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
                 
-                # Instantly persist to physical hardware matrix file on disk
+                # Physical disk pipeline persistence write commitment
                 df_updated.to_csv(CSV_FILE_PATH, index=False)
                 st.rerun()
 
@@ -363,7 +376,7 @@ if archive_key in st.session_state:
     arch = st.session_state[archive_key]
     st.markdown("<div class='print-frame'>", unsafe_allow_html=True)
     st.markdown("## 🖨️ FINAL CONSOLIDATED SPECIFICATION & CAPABILITY REPORT")
-    st.markdown("#### PI & QA Division — Shift Performance Verification Ledger")
+    st.markdown(f"#### PI & QA Division — Shift Performance Verification Ledger ({component_size})")
     
     m = arch['metrics']
     
