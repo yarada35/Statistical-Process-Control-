@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from scipy.stats import norm
 import os
+from datetime import datetime
 
 # --- ARCHITECTURAL VISUAL MASTER MATRIX (PREMIUM INDUSTRIAL SPEC) ---
 st.set_page_config(page_title="Horizon Addis Tyre - SPC Center", layout="wide")
@@ -97,7 +98,7 @@ st.markdown("""
         font-weight: bold !important;
     }
     
-    .stSelectbox div[data-baseweb="select"], .stNumberInput input, .stTextInput input {
+    .stSelectbox div[data-baseweb="select"], .stNumberInput input, .stTextInput input, .stDateInput input, .stTimeInput input {
         background-color: #1A221E !important;
         color: #00FF66 !important;
         border: 1px solid #00FF66 !important;
@@ -120,7 +121,7 @@ st.markdown("""
 
     .print-frame {
         background-color: #050507 !important;
-        border: 2px dashed #FF3333 !important;
+        border: 2px dashed #00FF66 !important;
         padding: 25px;
         border-radius: 6px;
         margin-top: 40px;
@@ -135,7 +136,6 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* Custom sizing addition area layout */
     .management-card {
         background-color: #0D1117 !important;
         border: 1px solid #FFBB00 !important;
@@ -153,6 +153,9 @@ st.markdown("""
         <div class="sub-title">Product Industrialization & Quality Assurance — Live SPC Engine</div>
     </div>
 """, unsafe_allow_html=True)
+
+# --- AUTHORIZATION GATEWAY PROPERTIES ---
+MANAGER_PASSTOKEN = "ADDIS_QA_2026"  # Set your private secure master configuration token key here
 
 # --- CONFIG HARDWARE PERSISTENCE REGISTRY FILE MANAGEMENT ---
 REGISTRY_FILE = "profile_registry_config.csv"
@@ -178,14 +181,7 @@ def load_profile_registry():
     default_registry = {
         "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.0137, "seed_sigma": 0.0395},
         "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 1.9989, "seed_sigma": 0.0216},
-        "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310},
-        "Size 4 Model Profile": {"target": 8.2000, "usl": 8.4460, "lsl": 7.9540, "seed_mean": 8.1920, "seed_sigma": 0.0280},
-        "Size 5 Model Profile": {"target": 3.1500, "usl": 3.2445, "lsl": 3.0555, "seed_mean": 3.1410, "seed_sigma": 0.0190},
-        "Size 6 Model Profile": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.7880, "seed_sigma": 0.0250},
-        "Size 7 Model Profile": {"target": 9.4000, "usl": 9.6820, "lsl": 9.1180, "seed_mean": 9.3850, "seed_sigma": 0.0340},
-        "Size 8 Model Profile": {"target": 12.0000, "usl": 12.3600, "lsl": 11.6400, "seed_mean": 11.9750, "seed_sigma": 0.0410},
-        "Size 9 Model Profile": {"target": 4.7500, "usl": 4.8925, "lsl": 4.6075, "seed_mean": 4.7350, "seed_sigma": 0.0220},
-        "Size 10 Model Profile": {"target": 14.2000, "usl": 14.6260, "lsl": 13.7740, "seed_mean": 14.1650, "seed_sigma": 0.0480}
+        "Size 3 Model Profile": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.4850, "seed_sigma": 0.0310}
     }
     save_profile_registry(default_registry)
     return default_registry
@@ -211,165 +207,130 @@ options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
 if "active_profile_name" not in st.session_state or st.session_state["active_profile_name"] not in options_list:
     st.session_state["active_profile_name"] = options_list[0]
 
-if "previous_component_selection" not in st.session_state:
-    st.session_state["previous_component_selection"] = ""
+if "previous_unique_datakey" not in st.session_state:
+    st.session_state["previous_unique_datakey"] = ""
 
-# --- ACTIVE COMPONENT SELECTION MATRIX ---
-col_sel1, col_sel2 = st.columns([2, 1])
-with col_sel1:
+# --- ACTIVE COMPONENT SELECTION & SHIFT MATRIX METADATA BAR ---
+st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>⚙️ 1. COMPONENT SELECTION & ACTIVE LINE SHIFT TRACKING REGISTRY</p>", unsafe_allow_html=True)
+row_sel1, row_sel2, row_sel3, row_sel4 = st.columns([2, 1, 1, 1])
+
+with row_sel1:
     current_idx = options_list.index(st.session_state["active_profile_name"])
     component_size = st.selectbox(
-        "📂 Active Component Model & Dimension Selector",
+        "📂 Active Profile Target Size Blueprint",
         options=options_list,
         index=current_idx
     )
     st.session_state["active_profile_name"] = component_size
 
-with col_sel2:
-    tolerance_pct = st.number_input("Given Tolerance Percentage (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
+with row_sel2:
+    active_date = st.date_input("Production Operation Date", value=datetime.now().date())
 
-if st.session_state["previous_component_selection"] != component_size:
-    st.session_state["previous_component_selection"] = component_size
-    old_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-    st.session_state.pop(f"dataset_{old_clean}", None)
+with row_sel3:
+    active_shift = st.selectbox("Active Operational Shift Rotation", ["Shift A (Morning)", "Shift B (Afternoon)", "Shift C (Night)"])
+
+with row_sel4:
+    tolerance_pct = st.number_input("Given Tolerance (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
+
+# Generate structured file keys combining Size + Date + Shift to isolate inputs securely
+clean_size_str = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+clean_shift_str = active_shift.split(' ')[1].lower()  # returns 'a', 'b', or 'c'
+unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
+CSV_FILE_PATH = f"spc_datastore_{unique_data_key}.csv"
+
+if st.session_state["previous_unique_datakey"] != unique_data_key:
+    st.session_state["previous_unique_datakey"] = unique_data_key
+    st.session_state.pop(f"dataset_{unique_data_key}", None)
 
 current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 
-# --- RE-ENGINEERED UNBROKEN PROFILE EDIT & RENAMING MATRIX ENGINE ---
-with st.expander("📝 Keyboard Writing: Rename Active Selection & Rewrite Core Specifications"):
-    st.markdown("<div class='management-card' style='border: 1px solid #00FF66;'>", unsafe_allow_html=True)
+# --- RE-ENGINEERED AUTHORIZED SPECIFICATION MODIFICATION MODULES ---
+with st.expander("🔐 Manager Authorization Center: Modify Dropdowns & Product Blueprints"):
+    st.markdown("<div class='management-card' style='border: 1px solid #FFBB00;'>", unsafe_allow_html=True)
+    st.markdown("⚠️ *Supervisors do not have rights to change configuration metrics. Master key signature string token validation required.*")
     
-    with st.form(key=f"rename_specification_form_{component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')}"):
-        st.markdown(f"<p style='color:#FFFFFF; font-weight:bold;'>Editing Profile Target: <span style='color:#00FF66;'>{component_size}</span></p>", unsafe_allow_html=True)
+    auth_key_input = st.text_input("🔑 Enter Master Management Authorization Passcode", type="password")
+    
+    if auth_key_input == MANAGER_PASSTOKEN:
+        st.success("🔓 Authorization verified successfully. Modification controllers unlocked.")
         
-        edit_name = st.text_input("✏️ Keyboard Change Name String", value=component_size)
-        
-        ec1, ec2, ec3 = st.columns(3)
-        with ec1: edit_target = ec1.number_input("Modify Target Center", value=float(current_config["target"]), format="%.4f")
-        with ec2: edit_usl = ec2.number_input("Modify Upper Spec Limit (USL)", value=float(current_config["usl"]), format="%.4f")
-        with ec3: edit_lsl = ec3.number_input("Modify Lower Spec Limit (LSL)", value=float(current_config["lsl"]), format="%.4f")
-        
-        submit_spec_changes = st.form_submit_button("⚡ EXECUTE PROFILE REWRITE & FILE RE-LINK")
-        
-        if submit_spec_changes:
-            new_clean_name = edit_name.strip()
+        # Action A: Rename/Edit Current
+        st.markdown("---")
+        with st.form(key=f"authorized_edit_form_{clean_size_str}"):
+            st.markdown(f"✍️ **Editing Specification Blueprint for Target:** `{component_size}`")
+            edit_name = st.text_input("Modify Profile Display Identifier Name", value=component_size)
+            ec1, ec2, ec3 = st.columns(3)
+            with ec1: edit_target = ec1.number_input("Modify Target Weight Center", value=float(current_config["target"]), format="%.4f")
+            with ec2: edit_usl = ec2.number_input("Modify Upper Spec Limit (USL)", value=float(current_config["usl"]), format="%.4f")
+            with ec3: edit_lsl = ec3.number_input("Modify Lower Spec Limit (LSL)", value=float(current_config["lsl"]), format="%.4f")
             
-            # --- GUARDRAIL ACTION 1: SPECIFICATION BOUNDARY CHECKS ---
-            if new_clean_name == "":
-                st.error("⚠️ REGISTRY ERROR: Profile name signature cannot be blank. Please enter a valid model identifier.")
-            elif edit_lsl >= edit_target:
-                st.error(f"⚠️ METROLOGY CONFLICT: Lower Spec Limit ({edit_lsl}) cannot be greater than or equal to the Target Center ({edit_target}). Please adjust.")
-            elif edit_usl <= edit_target:
-                st.error(f"⚠️ METROLOGY CONFLICT: Upper Spec Limit ({edit_usl}) cannot be less than or equal to the Target Center ({edit_target}). Please adjust.")
-            elif edit_lsl >= edit_usl:
-                st.error(f"⚠️ METROLOGY CONFLICT: LSL ({edit_lsl}) cannot exceed or equal USL ({edit_usl}). Double-check engineering specifications blueprint.")
-            else:
-                old_csv_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-                new_csv_clean = new_clean_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-                
-                st.session_state.pop(f"dataset_{old_csv_clean}", None)
-                st.session_state.pop(f"dataset_{new_csv_clean}", None)
-                st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
-                
-                st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
-                    "target": edit_target,
-                    "usl": edit_usl,
-                    "lsl": edit_lsl,
-                    "seed_mean": edit_target,
-                    "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
+            if st.form_submit_button("⚡ COMMIT TARGET CHANGES & SAVE CONFIG"):
+                new_clean_name = edit_name.strip()
+                if new_clean_name == "":
+                    st.error("❌ Alteration blank error name.")
+                elif edit_lsl >= edit_target or edit_usl <= edit_target or edit_lsl >= edit_usl:
+                    st.error("❌ Limit logic error: Ensure LSL < Target < USL.")
+                else:
+                    st.session_state["COMPONENT_REGISTRY"].pop(component_size, None)
+                    st.session_state["COMPONENT_REGISTRY"][new_clean_name] = {
+                        "target": edit_target, "usl": edit_usl, "lsl": edit_lsl,
+                        "seed_mean": edit_target, "seed_sigma": max((edit_usl - edit_lsl) / 10.0, 0.001)
+                    }
+                    save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
+                    st.session_state["active_profile_name"] = new_clean_name
+                    st.success("✓ Profile blueprint committed to configuration database.")
+                    st.rerun()
+                    
+        # Action B: Create New Profile
+        st.markdown("---")
+        st.markdown("➕ **Add Brand New Component Sizing Profile Matrix**")
+        new_size_name = st.text_input("Setup New Profile Unique Name Signature String (e.g., 195 R 15)")
+        nc1, nc2, nc3 = st.columns(3)
+        with nc1: new_target = nc1.number_input("Design Target Blueprint Value", value=10.0000, format="%.4f")
+        with nc2: new_usl = nc2.number_input("Upper Specification Limit (USL)", value=10.3000, format="%.4f")
+        with nc3: new_lsl = nc3.number_input("Lower Specification Limit (LSL)", value=9.7000, format="%.4f")
+        
+        if st.button("💾 SAVE CUSTOM CONFIGURATION TO REGISTRY"):
+            cleaned_input_name = new_size_name.strip()
+            if cleaned_input_name != "" and cleaned_input_name not in st.session_state["COMPONENT_REGISTRY"]:
+                st.session_state["COMPONENT_REGISTRY"][cleaned_input_name] = {
+                    "target": new_target, "usl": new_usl, "lsl": new_lsl,
+                    "seed_mean": new_target, "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
                 }
-                
                 save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
-                
-                if old_csv_clean != new_csv_clean:
-                    if os.path.exists(f"spc_datastore_{old_csv_clean}.csv"):
-                        try:
-                            os.rename(f"spc_datastore_{old_csv_clean}.csv", f"spc_datastore_{new_csv_clean}.csv")
-                        except Exception:
-                            pass
-                
-                st.session_state["active_profile_name"] = new_clean_name
-                st.success(f"✓ Profile successfully updated to '{new_clean_name}'")
+                st.session_state["active_profile_name"] = cleaned_input_name
+                st.success(f"✓ '{cleaned_input_name}' added to dropdown catalog registry.")
                 st.rerun()
+            else:
+                st.error("❌ Validation error: Field is blank or product profile identifier code already exists.")
+    elif auth_key_input != "":
+        st.error("🔒 ACCESS DENIED: Invalid Management Authorization passcode string token.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- EXPANDABLE: CREATE NEW SIZE CONTROL PANEL INTERFACE ---
-with st.expander("➕ Define & Type Brand New Custom Component Size Profile"):
-    st.markdown("<div class='management-card'>", unsafe_allow_html=True)
-    new_size_name = st.text_input(
-        "⌨️ Setup Initial Profile Unique Name Signature String", 
-        placeholder="e.g., 195 R 15",
-        key="keyboard_size_input"
-    )
-    
-    nc1, nc2, nc3 = st.columns(3)
-    with nc1: new_target = nc1.number_input("Design Target Blueprint Value", value=10.0000, format="%.4f")
-    with nc2: new_usl = nc2.number_input("Upper Specification Limit (USL)", value=10.3000, format="%.4f")
-    with nc3: new_lsl = nc3.number_input("Lower Specification Limit (LSL)", value=9.7000, format="%.4f")
-    
-    if st.button("💾 SAVE CUSTOM STRING TO DROP-DOWN"):
-        cleaned_input_name = new_size_name.strip()
-        
-        # --- GUARDRAIL ACTION 2: NEW REGISTRY VERIFICATION ---
-        if cleaned_input_name == "":
-            st.error("⚠️ VALIDATION ERROR: The new custom profile name field cannot be blank.")
-        elif cleaned_input_name in st.session_state["COMPONENT_REGISTRY"]:
-            st.warning(f"⚠️ DUPLICATE ENTRY: Model profile designation '{cleaned_input_name}' already exists in current database.")
-        elif new_lsl >= new_target or new_usl <= new_target or new_lsl >= new_usl:
-            st.error("⚠️ LIMIT ERROR: Invalid engineering architecture metrics. Ensure LSL < Target < USL.")
-        else:
-            st.session_state["COMPONENT_REGISTRY"][cleaned_input_name] = {
-                "target": new_target,
-                "usl": new_usl,
-                "lsl": new_lsl,
-                "seed_mean": new_target,
-                "seed_sigma": max((new_usl - new_lsl) / 10.0, 0.001)
-            }
-            
-            save_profile_registry(st.session_state["COMPONENT_REGISTRY"])
-            
-            new_clean = cleaned_input_name.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-            st.session_state.pop(f"dataset_{new_clean}", None)
-            st.session_state.pop(f"archive_{new_clean}", None)
-            
-            st.session_state["active_profile_name"] = cleaned_input_name
-            st.success(f"✓ '{cleaned_input_name}' recorded dynamically. Dropdown shifted.")
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- ISO-BALANCED EXPANDED DANGER ZONE CONTROL ---
-with st.expander("⚠️ DANGER ZONE: CORE RECORD PURGE & HISTORY WIPE"):
+# --- ISO-BALANCED ACTIVE SHIFT LOG PURGE ENGINE ---
+with st.expander("⚠️ Shift Data Wipe & Cleanup Utilities"):
     st.markdown("<div class='management-card' style='border: 1px solid #FF3333;'>", unsafe_allow_html=True)
-    st.markdown(f"<p style='color:#FFFFFF;'>You are about to completely wipe all active history data logs and files for: <b style='color:#FF3333;'>{component_size}</b></p>", unsafe_allow_html=True)
-    
-    if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY & RESTART AT SAMPLE #1", key="isolated_danger_purge_btn"):
-        purge_clean = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-        target_csv_file = f"spc_datastore_{purge_clean}.csv"
-        
-        if os.path.exists(target_csv_file):
-            os.remove(target_csv_file)
-            
-        st.session_state.pop(f"dataset_{purge_clean}", None)
-        st.session_state.pop(f"archive_{purge_clean}", None)
-        st.success(f"💥 Datastore history for '{component_size}' cleared completely. Counter reset to 1.")
+    st.markdown(f"Purge current shift metrics log for size **{component_size}** on date **{active_date}** during **{active_shift}**:")
+    if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY FOR THIS SHIFT ONLY", key="shift_purge_btn"):
+        if os.path.exists(CSV_FILE_PATH):
+            os.remove(CSV_FILE_PATH)
+        st.session_state.pop(f"dataset_{unique_data_key}", None)
+        st.session_state.pop(f"archive_{unique_data_key}", None)
+        st.success("💥 Shift historical data registers purged completely.")
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Reload active specifications cleanly to allow instant global UI rendering update
+# Reload active specs globally
 config = st.session_state["COMPONENT_REGISTRY"][component_size]
 default_target = config["target"]
 default_usl = config["usl"]
 default_lsl = config["lsl"]
 
-# --- FILE HARDWARE PERSISTENCE ENGINE ---
-clean_name = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-CSV_FILE_PATH = f"spc_datastore_{clean_name}.csv"
-
 def generate_fresh_baseline():
-    return pd.DataFrame(columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
+    return pd.DataFrame(columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-state_key = f"dataset_{clean_name}"
-archive_key = f"archive_{clean_name}"
+state_key = f"dataset_{unique_data_key}"
+archive_key = f"archive_{unique_data_key}"
 
 if state_key not in st.session_state:
     if os.path.exists(CSV_FILE_PATH):
@@ -386,7 +347,7 @@ else:
     df_active = st.session_state[state_key]
 
 # --- PANEL 1: SPECIFICATION CONSTANTS BAR ---
-st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ PROCESS SPECIFICATION STANDARDS & CONSTANTS</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ 2. PROCESS SPECIFICATION STANDARDS & TARGET BOUNDARIES</p>", unsafe_allow_html=True)
 c1, c2, c3, c4, c5, c6 = st.columns(6)
 with c1: usl = st.number_input("USL (Upper Spec)", value=default_usl, format="%.4f")
 with c2: target = st.number_input("Target Value", value=default_target, format="%.4f")
@@ -427,21 +388,9 @@ if not df.empty:
     lcl_r = 0.0
     gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0000
 else:
-    total_obs = 0
-    grand_mean = target
-    average_range = 0.0000
-    span_obs = 0.0000
-    grand_median = target
-    variance_obs = 0.0000
-    obs_max = target
-    obs_min = target
-    std_dev = 0.001
-    overall_std = 0.001
-    ucl_x = target
-    lcl_x = target
-    ucl_r = 0.0
-    lcl_r = 0.0
-    gen_movement = 0.0000
+    total_obs = 0; grand_mean = target; average_range = 0.0; span_obs = 0.0; grand_median = target
+    variance_obs = 0.0; obs_max = target; obs_min = target; std_dev = 0.001; overall_std = 0.001
+    ucl_x = target; lcl_x = target; ucl_r = 0.0; lcl_r = 0.0; gen_movement = 0.0
     flattened = np.array([target])
 
 def build_plots(data_frame, flat_array):
@@ -472,9 +421,7 @@ def build_plots(data_frame, flat_array):
     fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
-    fig_s.add_vline(x=tol_max_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
-    fig_s.add_vline(x=tol_min_val, line_dash="dash", line_color="#FF3333", line_width=1.5)
-    fig_s.update_layout(title="<b>Process Curve vs Specs & Tol</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
+    fig_s.update_layout(title="<b>Process Curve vs Specs</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
     
     return fig_x, fig_r, fig_s
 
@@ -515,23 +462,22 @@ with split_col1:
     st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📥 LIVE SUBGROUP DATASTREAM ENTRY</p>", unsafe_allow_html=True)
     
     if current_subgroups >= 20:
-        st.error(f"🛑 MAXIMUM CAP REACHED: Engine contains {current_subgroups} Subgroups ({total_obs} samples). Entry closed.")
+        st.error(f"🛑 MAXIMUM CAP REACHED: This shift sheet contains {current_subgroups} Subgroups. Entry closed.")
         
         if st.button("💾 Archive, Print and Reset to Sample #1"):
             cp = (usl - lsl) / (6 * std_dev) if std_dev > 0 else 0
             cpu = (usl - grand_mean) / (3 * std_dev) if std_dev > 0 else 0
             cpl = (grand_mean - lsl) / (3 * std_dev) if std_dev > 0 else 0
             cpk = min(cpu, cpl)
-            
             pp = (usl - lsl) / (6 * overall_std) if overall_std > 0 else 0
             ppu = (usl - grand_mean) / (3 * overall_std) if overall_std > 0 else 0
             ppl = (grand_mean - lsl) / (3 * overall_std) if overall_std > 0 else 0
             ppk = min(ppu, ppl)
             
             st.session_state[archive_key] = {
-                'df': df.copy(),
-                'flat': flattened.copy(),
-                'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev}
+                'df': df.copy(), 'flat': flattened.copy(),
+                'metrics': {'cp': cp, 'cpk': cpk, 'pp': pp, 'ppk': ppk, 'mean': grand_mean, 'sigma': std_dev},
+                'meta': {'date': active_date, 'shift': active_shift}
             }
             
             df_fresh = generate_fresh_baseline()
@@ -539,11 +485,13 @@ with split_col1:
             st.session_state[state_key] = df_fresh
             st.rerun()
     else:
-        st.markdown(f"<div class='sop-card'><b>📋 SOP:</b> Record 5 inputs. Current Batch Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sop-card'><b>📋 SOP LOG:</b> {active_shift} | Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
         
-        with st.form(key=f"data_entry_form_{clean_name}_{current_subgroups}"):
+        with st.form(key=f"data_entry_form_{unique_data_key}_{current_subgroups}"):
             next_id = current_subgroups + 1
-            st.markdown(f"<div style='color:#FFFFFF; font-weight:bold;'>Target Subgroup Sequential Index: Subgroup #{next_id} / 20</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color:#FFFFFF; font-weight:bold;'>Target Entry: Subgroup #{next_id} / 20</div>", unsafe_allow_html=True)
+            
+            supervisor_name = st.text_input("Supervisor Token/Name", value="Supervisor 1")
             
             v1 = st.number_input("Sub-Sample Measurement X1", value=float(default_target), format="%.4f")
             v2 = st.number_input("Sub-Sample Measurement X2", value=float(default_target), format="%.4f")
@@ -554,40 +502,33 @@ with split_col1:
             if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
                 input_array = np.array([v1, v2, v3, v4, v5])
                 
-                # --- GUARDRAIL ACTION 3: ENTRY ERROR CHECKER ---
-                # Detects if a sample entry deviates from target by an impossible amount (e.g., typing 111 instead of 11.1)
-                extreme_deviation = False
-                for val in input_array:
-                    if val > (target * 3) or val < (target / 3):
-                        extreme_deviation = True
-                        bad_value = val
-                        break
-                
-                if extreme_deviation:
-                    st.error(f"❌ ENTRY PROTECTION GUARDRAIL: Detected unusual physical value ({bad_value:.4f}). This deviates drastically from the engineering target blueprint of {target:.4f}. Please cross-check and type again.")
+                if supervisor_name.strip() == "":
+                    st.error("❌ ENTRY ERROR: Supervisor identification signature cannot be left blank.")
+                elif np.any(input_array > (target * 3)) or np.any(input_array < (target / 3)):
+                    st.error(f"❌ METROLOGY GUARDRAIL: A recorded value deviates excessively from blueprint target center ({target:.4f}). Check for typing errors.")
                 elif np.any(input_array <= 0):
-                    st.error("❌ PHYSICAL SPACE VIOLATION: Extrusion measurements cannot be negative or equal to 0. Please enter actual laboratory values.")
+                    st.error("❌ METROLOGY GUARDRAIL: Physical dimension inputs must be greater than zero.")
                 else:
-                    new_row = pd.DataFrame([[next_id, v1, v2, v3, v4, v5]], columns=['Sample', 'X1', 'X2', 'X3', 'X4', 'X5'])
-                    if df.empty:
-                        df_updated = new_row
-                    else:
-                        df_updated = pd.concat([df[['Sample', 'X1', 'X2', 'X3', 'X4', 'X5']], new_row], ignore_index=True)
+                    now_timestamp = datetime.now().strftime("%H:%M:%S")
+                    new_row = pd.DataFrame([[
+                        next_id, now_timestamp, supervisor_name.strip(), active_shift,
+                        v1, v2, v3, v4, v5
+                    ]], columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
                     
+                    df_updated = new_row if df.empty else pd.concat([df, new_row], ignore_index=True)
                     df_updated.to_csv(CSV_FILE_PATH, index=False)
                     st.session_state[state_key] = df_updated
                     st.rerun()
 
 with split_col2:
-    st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 UNBROKEN ACTIVE DATASTORE STORAGE ENGINE (RAW + CALCULATED ANALYSIS)</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 DATASTORE STORAGE SHEET ({active_date} — {active_shift})</p>", unsafe_allow_html=True)
     if not df.empty:
         st.dataframe(
-            df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
-            height=270,
-            use_container_width=True
+            df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5']),
+            height=270, use_container_width=True
         )
     else:
-        st.info("💡 Storage engine empty. Please append Subgroup #1 to start data aggregation.")
+        st.info("💡 Shift register empty. Append data to begin analysis aggregation.")
 
 st.markdown("---")
 
@@ -605,9 +546,9 @@ if archive_key in st.session_state:
     st.markdown("<div class='print-frame'>", unsafe_allow_html=True)
     st.markdown("## 🖨️ FINAL CONSOLIDATED SPECIFICATION & CAPABILITY REPORT")
     st.markdown(f"#### PI & QA Division — Shift Performance Verification Ledger ({component_size})")
+    st.markdown(f"**Operational Context:** Date: `{arch['meta']['date']}` | Production Run Rotation: `{arch['meta']['shift']}`")
     
     m = arch['metrics']
-    
     mc1, mc2, mc3, mc4 = st.columns(4)
     mc1.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">POTENTIAL CAPABILITY (Cp)</p><h3 style="color:#00FF66;margin:5px 0;">{m["cp"]:.4f}</h3></div>', unsafe_allow_html=True)
     mc2.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">MINIMUM PROCESS INDEX (Cpk)</p><h3 style="color:#00FF66;margin:5px 0;">{m["cpk"]:.4f}</h3></div>', unsafe_allow_html=True)
@@ -616,23 +557,12 @@ if archive_key in st.session_state:
     
     st.markdown("#### 📝 CRITICAL QUALITY PERFORMANCE AUDIT OBSERVATIONS:")
     if m['cpk'] >= 1.33:
-        st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE (Cpk = {m['cpk']:.4f}).** The extrusion variant dispersion profile sits safely inside specification boundaries. System exhibits complete statistical stability.")
+        st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** Extrusion variant dispersion sits completely stable within spec boundaries.")
     elif m['cpk'] >= 1.00:
-        st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE (Cpk = {m['cpk']:.4f}).** Center shifts detected. Increase close die pressure maintenance monitoring loops immediately.")
+        st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE ($C_{{pk}}$ = {m['cpk']:.4f}).** Center shifts detected. Increase line pressure monitoring loops.")
     else:
-        st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT (Cpk = {m['cpk']:.4f}).** Variance profile exceeds standard deviation ceiling. Immediate mechanical verification required on head temperatures.")
+        st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT ($C_{{pk}}$ = {m['cpk']:.4f}).** Variance profile exceeds limits. Immediate mechanical inspection required.")
         
     st.markdown("---")
-    st.markdown("**Archived Raw Data and Computed Limits:**")
-    st.dataframe(
-        arch['df'].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5', 'Mean', 'Range']),
-        use_container_width=True
-    )
-    st.markdown("---")
-    st.markdown("**Archived Analytical Control Graphs:**")
-    p1, p2, p3 = st.columns([1.4, 1.4, 1.2])
-    afx, afr, afs = build_plots(arch['df'], arch['flat'])
-    p1.plotly_chart(afx, use_container_width=True, config={'staticPlot': True})
-    p2.plotly_chart(afr, use_container_width=True, config={'staticPlot': True})
-    p3.plotly_chart(afs, use_container_width=True, config={'staticPlot': True})
+    st.dataframe(arch['df'].style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5']), use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
