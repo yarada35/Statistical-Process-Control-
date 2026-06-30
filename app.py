@@ -268,9 +268,28 @@ clean_shift_str = active_shift.split(' ')[1].lower()
 unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
 CSV_FILE_PATH = os.path.join(DATA_DIR, f"spc_datastore_{unique_data_key}.csv")
 
+# --- EARLY INITIALIZATION OF SESSION KEYS TO PREVENT NameError/KeyError ---
+state_key = f"dataset_{unique_data_key}"
+archive_key = f"archive_{unique_data_key}"
+
+def generate_fresh_baseline():
+    return pd.DataFrame(columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
+
 if st.session_state["previous_unique_datakey"] != unique_data_key:
     st.session_state["previous_unique_datakey"] = unique_data_key
-    st.session_state.pop(f"dataset_{unique_data_key}", None)
+    st.session_state.pop(state_key, None)
+
+if state_key not in st.session_state:
+    if os.path.exists(CSV_FILE_PATH):
+        try:
+            df_active = pd.read_csv(CSV_FILE_PATH)
+        except Exception:
+            df_active = generate_fresh_baseline()
+            df_active.to_csv(CSV_FILE_PATH, index=False)
+    else:
+        df_active = generate_fresh_baseline()
+        df_active.to_csv(CSV_FILE_PATH, index=False)
+    st.session_state[state_key] = df_active
 
 current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 
@@ -365,8 +384,8 @@ with st.expander("⚠️ Shift Data Wipe & Cleanup Utilities"):
     st.markdown(f"Purge current shift metrics log for size **{component_size}**:")
     if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY FOR THIS SHIFT ONLY", key="shift_purge_btn"):
         if os.path.exists(CSV_FILE_PATH): os.remove(CSV_FILE_PATH)
-        st.session_state.pop(f"dataset_{unique_data_key}", None)
-        st.session_state.pop(f"archive_{unique_data_key}", None)
+        st.session_state.pop(state_key, None)
+        st.session_state.pop(archive_key, None)
         st.success("💥 Shift historical data registers purged completely.")
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -416,7 +435,7 @@ else:
     ucl_x = target; lcl_x = target; ucl_r = 0.0; lcl_r = 0.0; gen_movement = 0.0
     flattened = np.array([target])
 
-# --- FIX: PROCESS SPECIFICATION STANDARDS EXPOSED VIA ULTRA-BRIGHT READ-ONLY CUSTOM HTML PLATES ---
+# --- PROCESS SPECIFICATION STANDARDS EXPOSED VIA ULTRA-BRIGHT READ-ONLY CUSTOM HTML PLATES ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ 2. PROCESS SPECIFICATION STANDARDS & TARGET BOUNDARIES [SECURED READ-ONLY]</p>", unsafe_allow_html=True)
 sc1, sc2, sc3, sc4, sc5, sc6 = st.columns(6)
 sc1.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">USL (Upper Spec)</div><div class="spec-plate-value">{usl:.4f}</div></div>', unsafe_allow_html=True)
@@ -452,7 +471,7 @@ def build_plots(data_frame, flat_array):
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
     fig_s.update_layout(title="<b>Process Curve vs Specs</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
-    return fig_x, fig_r, font_color if 'font_color' in locals() else fig_s
+    return fig_x, fig_r, fig_s
 
 # --- PANEL 2: LATERAL MATRIX DISPLAY ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 LIVE PROCESS SUMMARY PARAMETERS MATRIX</p>", unsafe_allow_html=True)
