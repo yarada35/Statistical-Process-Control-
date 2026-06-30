@@ -103,6 +103,29 @@ st.markdown("""
         color: #00FF66 !important;
         border: 1px solid #00FF66 !important;
     }
+
+    /* SPECIFICATION PLATES: Read-only high visibility styles */
+    .spec-plate-box {
+        background: #141916 !important;
+        border: 2px solid #00FF66 !important;
+        border-radius: 4px;
+        padding: 10px;
+        text-align: center;
+    }
+    .spec-plate-label {
+        font-size: 11px !important;
+        color: #FFFFFF !important;
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+    .spec-plate-value {
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 20px !important;
+        color: #FFBB00 !important;
+        font-weight: bold !important;
+        text-shadow: 0 0 10px rgba(255, 187, 0, 0.3);
+    }
     
     div.stButton > button:first-child { 
         background-color: #00FF66 !important; 
@@ -261,7 +284,7 @@ with st.expander("🔐 Manager Authorization Center: Modify Specifications & Cor
     if auth_key_input == MANAGER_PASSTOKEN:
         st.success("🔓 Authorization verified successfully. Management tools unlocked.")
         
-        # --- NEW ENGINE: SPECIFIC HISTORICAL ENTRY CORRECTION ---
+        # --- ENGINE: SPECIFIC HISTORICAL ENTRY CORRECTION ---
         st.markdown("---")
         st.markdown("🛠️ **2. BACK-DATABLE ENTRY CORRECTION ENGINE**")
         st.info("Select the target parameters of the mistaken shift run below to adjust its spreadsheet values directly.")
@@ -284,7 +307,6 @@ with st.expander("🔐 Manager Authorization Center: Modify Specifications & Cor
                     subgroup_to_fix = st.number_input("Enter Subgroup ID to modify", min_value=1, max_value=int(max(len(df_corr), 1)), step=1)
                     st.markdown(f"✍️ **Overwriting Dimensions for Subgroup #{subgroup_to_fix}**")
                     
-                    # Fetch old baseline values if index matches
                     matching_rows = df_corr[df_corr['Sample'] == subgroup_to_fix]
                     old_x = [float(current_config["target"])] * 5
                     if not matching_rows.empty:
@@ -350,38 +372,12 @@ with st.expander("⚠️ Shift Data Wipe & Cleanup Utilities"):
     st.markdown("</div>", unsafe_allow_html=True)
 
 config = st.session_state["COMPONENT_REGISTRY"][component_size]
-default_target = config["target"]
-default_usl = config["usl"]
-default_lsl = config["lsl"]
-
-def generate_fresh_baseline():
-    return pd.DataFrame(columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
-
-state_key = f"dataset_{unique_data_key}"
-archive_key = f"archive_{unique_data_key}"
-
-if state_key not in st.session_state:
-    if os.path.exists(CSV_FILE_PATH):
-        try: df_active = pd.read_csv(CSV_FILE_PATH)
-        except Exception:
-            df_active = generate_fresh_baseline()
-            df_active.to_csv(CSV_FILE_PATH, index=False)
-    else:
-        df_active = generate_fresh_baseline()
-        df_active.to_csv(CSV_FILE_PATH, index=False)
-    st.session_state[state_key] = df_active
-else:
-    df_active = st.session_state[state_key]
-
-# --- REQUIREMENT #1: PROCESS SPECIFICATION DISABLED/LOCKED FROM SUPERVISOR ALTERATION ---
-st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ 2. PROCESS SPECIFICATION STANDARDS & TARGET BOUNDARIES [LOCKED VIEWMODE]</p>", unsafe_allow_html=True)
-c1, c2, c3, c4, c5, c6 = st.columns(6)
-with c1: usl = c1.number_input("USL (Upper Spec)", value=default_usl, format="%.4f", disabled=True)
-with c2: target = c2.number_input("Target Value", value=default_target, format="%.4f", disabled=True)
-with c3: lsl = c3.number_input("LSL (Lower Spec)", value=default_lsl, format="%.4f", disabled=True)
-with c4: d2 = c4.number_input("Shewhart d2", value=2.3330, format="%.4f", disabled=True)
-with c5: A2 = c5.number_input("Shewhart A2", value=0.5770, format="%.4f", disabled=True)
-with c6: D4 = c6.number_input("Shewhart D4", value=2.1150, format="%.4f", disabled=True)
+usl = config["usl"]
+target = config["target"]
+lsl = config["lsl"]
+d2 = 2.3330
+A2 = 0.5770
+D4 = 2.1150
 
 calculated_tolerance = target * (tolerance_pct / 100.0)
 tol_max_val = target - calculated_tolerance
@@ -420,6 +416,16 @@ else:
     ucl_x = target; lcl_x = target; ucl_r = 0.0; lcl_r = 0.0; gen_movement = 0.0
     flattened = np.array([target])
 
+# --- FIX: PROCESS SPECIFICATION STANDARDS EXPOSED VIA ULTRA-BRIGHT READ-ONLY CUSTOM HTML PLATES ---
+st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ 2. PROCESS SPECIFICATION STANDARDS & TARGET BOUNDARIES [SECURED READ-ONLY]</p>", unsafe_allow_html=True)
+sc1, sc2, sc3, sc4, sc5, sc6 = st.columns(6)
+sc1.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">USL (Upper Spec)</div><div class="spec-plate-value">{usl:.4f}</div></div>', unsafe_allow_html=True)
+sc2.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Target Center</div><div class="spec-plate-value">{target:.4f}</div></div>', unsafe_allow_html=True)
+sc3.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">LSL (Lower Spec)</div><div class="spec-plate-value">{lsl:.4f}</div></div>', unsafe_allow_html=True)
+sc4.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart d2</div><div class="spec-plate-value">{d2:.4f}</div></div>', unsafe_allow_html=True)
+sc5.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart A2</div><div class="spec-plate-value">{A2:.4f}</div></div>', unsafe_allow_html=True)
+sc6.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart D4</div><div class="spec-plate-value">{D4:.4f}</div></div>', unsafe_allow_html=True)
+
 def build_plots(data_frame, flat_array):
     fig_x = go.Figure()
     if not data_frame.empty:
@@ -446,7 +452,7 @@ def build_plots(data_frame, flat_array):
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
     fig_s.update_layout(title="<b>Process Curve vs Specs</b>", paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
-    return fig_x, fig_r, fig_s
+    return fig_x, fig_r, font_color if 'font_color' in locals() else fig_s
 
 # --- PANEL 2: LATERAL MATRIX DISPLAY ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 LIVE PROCESS SUMMARY PARAMETERS MATRIX</p>", unsafe_allow_html=True)
@@ -502,18 +508,18 @@ with split_col1:
             next_id = current_subgroups + 1
             supervisor_name = st.text_input("Supervisor Token/Name", value="Supervisor 1")
             
-            v1 = st.number_input("Sub-Sample Measurement X1", value=float(default_target), format="%.4f")
-            v2 = st.number_input("Sub-Sample Measurement X2", value=float(default_target), format="%.4f")
-            v3 = st.number_input("Sub-Sample Measurement X3", value=float(default_target), format="%.4f")
-            v4 = st.number_input("Sub-Sample Measurement X4", value=float(default_target), format="%.4f")
-            v5 = st.number_input("Sub-Sample Measurement X5", value=float(default_target), format="%.4f")
+            v1 = st.number_input("Sub-Sample Measurement X1", value=float(target), format="%.4f")
+            v2 = st.number_input("Sub-Sample Measurement X2", value=float(target), format="%.4f")
+            v3 = st.number_input("Sub-Sample Measurement X3", value=float(target), format="%.4f")
+            v4 = st.number_input("Sub-Sample Measurement X4", value=float(target), format="%.4f")
+            v5 = st.number_input("Sub-Sample Measurement X5", value=float(target), format="%.4f")
             
             if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
                 input_array = np.array([v1, v2, v3, v4, v5])
                 
                 if supervisor_name.strip() == "":
                     st.error("❌ ENTRY ERROR: Supervisor identification signature cannot be left blank.")
-                # --- REQUIREMENT #3: EXTREME VAL REJECTION GUARDRAIL OUTSIDE OF 4% SPEC THRESHOLDS ---
+                # --- PROTECTION ZONE: REJECT ENTRY OUTSIDE OF +/- 4% OF USL/LSL ---
                 elif np.any(input_array < absolute_min_allowed) or np.any(input_array > absolute_max_allowed):
                     st.error(f"🛑 METROLOGY BLOCK: Entry rejected! Inputs must remain within standard +/- 4% extreme limits ({absolute_min_allowed:.4f} to {absolute_max_allowed:.4f}). Check inputs for typing errors.")
                 else:
