@@ -13,12 +13,25 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght=400;700&family=Share+Tech+Mono&display=swap');
     
+    /* GLOBAL LAYOUT & HIGH-CONTRAST EDGING SPECIFICATIONS */
     html, body, [data-testid="stAppViewContainer"] {
         background-color: #0A0A0C !important;
         font-family: 'Share Tech Mono', monospace !important;
         color: #00FF66 !important;
     }
     
+    /* SHARP DUAL RED/WHITE OUTER BORDER MATRIX FRAMEWORK */
+    [data-testid="stAppViewContainer"] > section {
+        border-left: 5px solid #FF3333 !important;
+        border-right: 5px solid #FF3333 !important;
+        box-shadow: inset 4px 0 0 0 #FFFFFF, inset -4px 0 0 0 #FFFFFF, 0 0 20px rgba(255, 51, 51, 0.3);
+    }
+    
+    [data-testid="stHeader"] {
+        border-bottom: 3px dashed #FFFFFF !important;
+        background-color: #0A0A0C !important;
+    }
+
     /* Artistic Background Title Banner Component */
     .factory-banner {
         background: linear-gradient(135deg, #0D2B18 0%, #040805 100%);
@@ -268,7 +281,6 @@ clean_shift_str = active_shift.split(' ')[1].lower()
 unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
 CSV_FILE_PATH = os.path.join(DATA_DIR, f"spc_datastore_{unique_data_key}.csv")
 
-# --- EARLY INITIALIZATION OF SESSION KEYS TO PREVENT NameError/KeyError ---
 state_key = f"dataset_{unique_data_key}"
 archive_key = f"archive_{unique_data_key}"
 
