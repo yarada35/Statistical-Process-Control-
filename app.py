@@ -245,8 +245,10 @@ def load_profile_registry():
         save_profile_registry(current_registry)
     return current_registry
 
-# Initialize Registry Context
-st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
+# Initialize Registry Context Safely
+if "COMPONENT_REGISTRY" not in st.session_state:
+    st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
+
 options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
 
 if "active_profile_name" not in st.session_state or st.session_state["active_profile_name"] not in options_list:
@@ -264,7 +266,6 @@ with row_sel1:
         current_idx = options_list.index(st.session_state["active_profile_name"])
     except ValueError:
         current_idx = 0
-        st.session_state["active_profile_name"] = options_list[0]
     component_size = st.selectbox("📂 Active Profile Target Size Blueprint", options=options_list, index=current_idx)
     st.session_state["active_profile_name"] = component_size
 
@@ -277,8 +278,8 @@ with row_sel3:
 with row_sel4:
     tolerance_pct = st.number_input("Given Tolerance (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.1, format="%.1f")
 
-clean_size_str = component_size.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
-clean_shift_str = active_shift.split(' ')[1].lower()  
+clean_size_str = str(component_size).replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_')
+clean_shift_str = str(active_shift).split(' ')[1].lower()  
 unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
 CSV_FILE_PATH = os.path.join(DATA_DIR, f"spc_datastore_{unique_data_key}.csv")
 
@@ -288,11 +289,10 @@ archive_key = f"archive_{unique_data_key}"
 def generate_fresh_baseline():
     return pd.DataFrame(columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# FIXED: Safely sync the context-window swap without purging valid old date tables from cache memory
+# Safe cache state synchronization tracking
 if st.session_state["previous_unique_datakey"] != unique_data_key:
     st.session_state["previous_unique_datakey"] = unique_data_key
 
-# Load data into session state from file if changing dates, instead of defaulting to an empty dataframe
 if os.path.exists(CSV_FILE_PATH):
     try:
         st.session_state[state_key] = pd.read_csv(CSV_FILE_PATH)
@@ -470,7 +470,7 @@ sc4.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhar
 sc5.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart A2</div><div class="spec-plate-value">{A2:.4f}</div></div>', unsafe_allow_html=True)
 sc6.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart D4</div><div class="spec-plate-value">{D4:.4f}</div></div>', unsafe_allow_html=True)
 
-# --- GRAPHING SUB-ENGINE WITH GLOWING DIODE YELLOW TITLES ---
+# --- GRAPHING SUB-ENGINE ---
 def build_plots(data_frame, flat_array):
     diode_yellow_title = dict(color='#FFBB00', family='Orbitron, Share Tech Mono, monospace', size=15)
     x_min, x_max = (data_frame['Sample'].min(), data_frame['Sample'].max()) if not data_frame.empty else (1, 20)
@@ -484,7 +484,8 @@ def build_plots(data_frame, flat_array):
     fig_x.update_layout(title=dict(text="<b>⚡ 1=> X-BAR PROCESS CONTROL CHART</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10))
     
     fig_r = go.Figure()
-    if not data_frame.empty: fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
+    if not data_frame.empty: 
+        fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
     fig_r.add_shape(type="line", x0=x_min, y0=average_range, x1=x_max, y1=average_range, line=dict(color="white", width=1.5))
     fig_r.add_shape(type="line", x0=x_min, y0=ucl_r, x1=x_max, y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
     fig_r.update_layout(title=dict(text="<b>⚡ 2=> R-BAR RANGE VARIABILITY CHART</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10))
@@ -495,7 +496,8 @@ def build_plots(data_frame, flat_array):
     xs = np.linspace(min(flat_array.min(), lsl), max(flat_array.max(), usl), 100)
     ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
     
-    fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2))) if not data_frame.empty else None
+    if not data_frame.empty:
+        fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
     fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
@@ -532,4 +534,69 @@ with split_col1:
         with st.form(key=f"data_entry_form_{unique_data_key}"):
             next_id = current_subgroups + 1
             supervisor_name = st.text_input("Supervisor Signature", value="Supervisor 1")
-            v1 = st.number_input
+            v1 = st.number_input("Measurement X1", value=float(target), format="%.4f")
+            v2 = st.number_input("Measurement X2", value=float(target), format="%.4f")
+            v3 = st.number_input("Measurement X3", value=float(target), format="%.4f")
+            v4 = st.number_input("Measurement X4", value=float(target), format="%.4f")
+            v5 = st.number_input("Measurement X5", value=float(target), format="%.4f")
+            
+            if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
+                input_array = np.array([v1, v2, v3, v4, v5])
+                if supervisor_name.strip() == "":
+                    st.error("❌ Identification blank error.")
+                elif np.any(input_array < absolute_min_allowed) or np.any(input_array > absolute_max_allowed):
+                    st.error("🛑 METROLOGY BLOCK: Entry rejected! Input outside safety boundary.")
+                else:
+                    now_timestamp = datetime.now().strftime("%H:%M:%S")
+                    new_row = pd.DataFrame([[next_id, now_timestamp, supervisor_name.strip(), active_shift, v1, v2, v3, v4, v5]], 
+                                           columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
+                    df_updated = pd.concat([df_raw, new_row], ignore_index=True)
+                    df_updated.to_csv(CSV_FILE_PATH, index=False)
+                    st.session_state[state_key] = df_updated
+                    st.rerun()
+
+with split_col2:
+    st.markdown(f"<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 WORKING ANALYSIS SPECIMENS (TOTAL: {total_subgroups_calculated} SUBGROUPS)</p>", unsafe_allow_html=True)
+    if not df.empty:
+        st.dataframe(df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5']), height=270, use_container_width=True)
+    else: 
+        st.info("💡 Shift register completely blank.")
+
+st.markdown("---")
+
+# --- PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS ---
+st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS (LOCKED VIEWMODE)</p>", unsafe_allow_html=True)
+g1, g2, g3 = st.columns([1.4, 1.4, 1.2])
+fx, fr, fs = build_plots(df, flattened)
+g1.plotly_chart(fx, use_container_width=True, config={'staticPlot': True})
+g2.plotly_chart(fr, use_container_width=True, config={'staticPlot': True})
+g3.plotly_chart(fs, use_container_width=True, config={'staticPlot': True})
+
+# --- AUTO-TRIGGER COMPILING RE-CALCULATION CAPABILITY PRINT SHIELD ---
+if total_subgroups_calculated >= 20:
+    st.markdown("<div class='print-frame'>", unsafe_allow_html=True)
+    st.markdown("## 🖨️ AUTO-COMPILED SPECIFICATION & CAPABILITY REPORT")
+    st.markdown(f"#### PI & QA Division — Compiled Shift Performance Verification Ledger ({component_size})")
+    
+    cp = (usl - lsl) / (6 * std_dev) if std_dev > 0 else 0
+    cpu = (usl - grand_mean) / (3 * std_dev) if std_dev > 0 else 0
+    cpl = (grand_mean - lsl) / (3 * std_dev) if grand_mean > lsl and std_dev > 0 else 0
+    cpk = min(cpu, cpl)
+    pp = (usl - lsl) / (6 * overall_std) if overall_std > 0 else 0
+    ppu = (usl - grand_mean) / (3 * overall_std) if overall_std > 0 else 0
+    ppl = (grand_mean - lsl) / (3 * overall_std) if grand_mean > lsl and overall_std > 0 else 0
+    ppk = min(ppu, ppl)
+    
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">POTENTIAL CAPABILITY (Cp)</p><h3 style="color:#00FF66;margin:5px 0;">{cp:.4f}</h3></div>', unsafe_allow_html=True)
+    mc2.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">MINIMUM PROCESS INDEX (Cpk)</p><h3 style="color:#00FF66;margin:5px 0;">{cpk:.4f}</h3></div>', unsafe_allow_html=True)
+    mc3.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">TOTAL PERFORMANCE (Pp)</p><h3 style="color:#00FF66;margin:5px 0;">{pp:.4f}</h3></div>', unsafe_allow_html=True)
+    mc4.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">PERFORMANCE INDEX (Ppk)</p><h3 style="color:#00FF66;margin:5px 0;">{ppk:.4f}</h3></div>', unsafe_allow_html=True)
+    
+    if cpk >= 1.33: 
+        st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE ($C_{{pk}}$ = {cpk:.4f}).** Stable.")
+    elif cpk >= 1.00: 
+        st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE ($C_{{pk}}$ = {cpk:.4f}).** Monitor variance.")
+    else: 
+        st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT ($C_{{pk}}$ = {cpk:.4f}).** Action required.")
+    st.markdown("</div>", unsafe_allow_html=True)
