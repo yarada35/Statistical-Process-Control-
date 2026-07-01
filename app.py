@@ -214,7 +214,6 @@ MASTER_FACTORY_BASICS = {
 }
 
 def save_profile_registry(registry_dict):
-    """Safely saves the registry while fully merging updates to avoid purging non-selected models."""
     rows = []
     for name, data in registry_dict.items():
         rows.append({
@@ -223,7 +222,6 @@ def save_profile_registry(registry_dict):
     pd.DataFrame(rows).to_csv(REGISTRY_FILE, index=False)
 
 def load_profile_registry():
-    """Loads configuration file from disk, guaranteeing no active sizes ever vanish."""
     current_registry = {}
     if os.path.exists(REGISTRY_FILE):
         try:
@@ -237,7 +235,6 @@ def load_profile_registry():
         except Exception:
             pass
 
-    # CRITICAL FALLBACK FORCE-MERGE PROTOCOL: Protects baseline definitions from vanishing
     updated = False
     for master_key, master_val in MASTER_FACTORY_BASICS.items():
         if master_key not in current_registry:
@@ -248,7 +245,7 @@ def load_profile_registry():
         save_profile_registry(current_registry)
     return current_registry
 
-# Initialize Registry Base Context
+# Initialize Registry Context
 st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
 options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
 
@@ -291,18 +288,18 @@ archive_key = f"archive_{unique_data_key}"
 def generate_fresh_baseline():
     return pd.DataFrame(columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
+# FIXED: Safely sync the context-window swap without purging valid old date tables from cache memory
 if st.session_state["previous_unique_datakey"] != unique_data_key:
     st.session_state["previous_unique_datakey"] = unique_data_key
-    st.session_state.pop(state_key, None)
 
-if state_key not in st.session_state:
-    if os.path.exists(CSV_FILE_PATH):
-        try: df_active = pd.read_csv(CSV_FILE_PATH)
-        except Exception: df_active = generate_fresh_baseline()
-    else:
-        df_active = generate_fresh_baseline()
-        df_active.to_csv(CSV_FILE_PATH, index=False)
-    st.session_state[state_key] = df_active
+# Load data into session state from file if changing dates, instead of defaulting to an empty dataframe
+if os.path.exists(CSV_FILE_PATH):
+    try:
+        st.session_state[state_key] = pd.read_csv(CSV_FILE_PATH)
+    except Exception:
+        st.session_state[state_key] = generate_fresh_baseline()
+else:
+    st.session_state[state_key] = generate_fresh_baseline()
 
 current_config = st.session_state["COMPONENT_REGISTRY"][component_size]
 
@@ -348,7 +345,7 @@ with st.expander("🔐 Manager Authorization Center: Modify Specifications & Cor
                     if st.form_submit_button("💾 REWRITE & COMMIT CORRECTION TO CSV"):
                         df_corr.loc[df_corr['Sample'] == subgroup_to_fix, ['X1', 'X2', 'X3', 'X4', 'X5']] = [cx1, cx2, cx3, cx4, cx5]
                         df_corr.to_csv(target_corr_file, index=False)
-                        st.session_state.pop(f"dataset_{c_size_str}_{edit_target_date}_{c_shift_str}", None)
+                        st.session_state[f"dataset_{c_size_str}_{edit_target_date}_{c_shift_str}"] = df_corr
                         st.success("✓ Subgroup updated successfully!")
                         st.rerun()
             except Exception as e: st.error(f"Error executing sheet adjustment: {str(e)}")
@@ -367,11 +364,9 @@ with st.expander("🔐 Manager Authorization Center: Modify Specifications & Cor
                 cleaned_new_name = edit_name.strip()
                 temp_registry = load_profile_registry()
                 
-                # If renaming, remove the old key safely
                 if cleaned_new_name != component_size:
                     temp_registry.pop(component_size, None)
                 
-                # Write/Update the configuration settings
                 temp_registry[cleaned_new_name] = {
                     "target": edit_target, "usl": edit_usl, "lsl": edit_lsl, 
                     'seed_mean': edit_target, 'seed_sigma': max((edit_usl - edit_lsl) / 10.0, 0.001)
@@ -496,8 +491,10 @@ def build_plots(data_frame, flat_array):
     
     fig_s = go.Figure()
     fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
+    
     xs = np.linspace(min(flat_array.min(), lsl), max(flat_array.max(), usl), 100)
     ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
+    
     fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2))) if not data_frame.empty else None
     fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
@@ -535,65 +532,4 @@ with split_col1:
         with st.form(key=f"data_entry_form_{unique_data_key}"):
             next_id = current_subgroups + 1
             supervisor_name = st.text_input("Supervisor Signature", value="Supervisor 1")
-            v1 = st.number_input("Measurement X1", value=float(target), format="%.4f")
-            v2 = st.number_input("Measurement X2", value=float(target), format="%.4f")
-            v3 = st.number_input("Measurement X3", value=float(target), format="%.4f")
-            v4 = st.number_input("Measurement X4", value=float(target), format="%.4f")
-            v5 = st.number_input("Measurement X5", value=float(target), format="%.4f")
-            
-            if st.form_submit_button(label="⚡ APPEND SUBGROUP TO ENGINE BASE"):
-                input_array = np.array([v1, v2, v3, v4, v5])
-                if supervisor_name.strip() == "":
-                    st.error("❌ Identification blank error.")
-                elif np.any(input_array < absolute_min_allowed) or np.any(input_array > absolute_max_allowed):
-                    st.error("🛑 METROLOGY BLOCK: Entry rejected! Input outside safety boundary.")
-                else:
-                    now_timestamp = datetime.now().strftime("%H:%M:%S")
-                    new_row = pd.DataFrame([[next_id, now_timestamp, supervisor_name.strip(), active_shift, v1, v2, v3, v4, v5]], 
-                                           columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
-                    df_updated = pd.concat([df_raw, new_row], ignore_index=True)
-                    df_updated.to_csv(CSV_FILE_PATH, index=False)
-                    st.session_state[state_key] = df_updated
-                    st.rerun()
-
-with split_col2:
-    st.markdown(f"<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 WORKING ANALYSIS SPECIMENS (TOTAL: {total_subgroups_calculated} SUBGROUPS)</p>", unsafe_allow_html=True)
-    if not df.empty:
-        st.dataframe(df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5']), height=270, use_container_width=True)
-    else: st.info("💡 Shift register completely blank.")
-
-st.markdown("---")
-
-# --- PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS ---
-st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS (LOCKED VIEWMODE)</p>", unsafe_allow_html=True)
-g1, g2, g3 = st.columns([1.4, 1.4, 1.2])
-fx, fr, fs = build_plots(df, flattened)
-g1.plotly_chart(fx, use_container_width=True, config={'staticPlot': True})
-g2.plotly_chart(fr, use_container_width=True, config={'staticPlot': True})
-g3.plotly_chart(fs, use_container_width=True, config={'staticPlot': True})
-
-# --- AUTO-TRIGGER COMPILING RE-CALCULATION CAPABILITY PRINT SHIELD ---
-if total_subgroups_calculated >= 20:
-    st.markdown("<div class='print-frame'>", unsafe_allow_html=True)
-    st.markdown("## 🖨️ AUTO-COMPILED SPECIFICATION & CAPABILITY REPORT")
-    st.markdown(f"#### PI & QA Division — Compiled Shift Performance Verification Ledger ({component_size})")
-    
-    cp = (usl - lsl) / (6 * std_dev) if std_dev > 0 else 0
-    cpu = (usl - grand_mean) / (3 * std_dev) if std_dev > 0 else 0
-    cpl = (grand_mean - lsl) / (3 * std_dev) if std_dev > 0 else 0
-    cpk = min(cpu, cpl)
-    pp = (usl - lsl) / (6 * overall_std) if overall_std > 0 else 0
-    ppu = (usl - grand_mean) / (3 * overall_std) if overall_std > 0 else 0
-    ppl = (grand_mean - lsl) / (3 * overall_std) if overall_std > 0 else 0
-    ppk = min(ppu, ppl)
-    
-    mc1, mc2, mc3, mc4 = st.columns(4)
-    mc1.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">POTENTIAL CAPABILITY (Cp)</p><h3 style="color:#00FF66;margin:5px 0;">{cp:.4f}</h3></div>', unsafe_allow_html=True)
-    mc2.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">MINIMUM PROCESS INDEX (Cpk)</p><h3 style="color:#00FF66;margin:5px 0;">{cpk:.4f}</h3></div>', unsafe_allow_html=True)
-    mc3.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">TOTAL PERFORMANCE (Pp)</p><h3 style="color:#00FF66;margin:5px 0;">{pp:.4f}</h3></div>', unsafe_allow_html=True)
-    mc4.markdown(f'<div class="capability-metric"><p style="color:#8A9A92;font-size:11px;margin:0;">PERFORMANCE INDEX (Ppk)</p><h3 style="color:#00FF66;margin:5px 0;">{ppk:.4f}</h3></div>', unsafe_allow_html=True)
-    
-    if cpk >= 1.33: st.markdown(f"🟢 **Process Status: HIGHLY CAPABLE ($C_{{pk}}$ = {cpk:.4f}).** Stable.")
-    elif cpk >= 1.00: st.markdown(f"🟡 **Process Status: MARGINALLY CAPABLE ($C_{{pk}}$ = {cpk:.4f}).** Monitor variance.")
-    else: st.markdown(f"🔴 **Process Status: CRITICAL NON-COMPLIANT ($C_{{pk}}$ = {cpk:.4f}).** Action required.")
-    st.markdown("</div>", unsafe_allow_html=True)
+            v1 = st.number_input
