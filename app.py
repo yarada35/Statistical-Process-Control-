@@ -334,7 +334,7 @@ with st.expander("🔐 Manager Authorization Center: Modify Specifications & Cor
                     matching_rows = df_corr[df_corr['Sample'] == subgroup_to_fix]
                     old_x = [float(current_config["target"])] * 5
                     if not matching_rows.empty:
-                        old_x = [matching_rows.iloc[0][f'X{i}'] for i in range(1, 6)]
+                        old_x = [matching_rows.iloc[0][f'X' + str(i)] for i in range(1, 6)]
                     
                     cx1 = st.number_input("Corrected X1", value=old_x[0], format="%.4f")
                     cx2 = st.number_input("Corrected X2", value=old_x[1], format="%.4f")
@@ -390,32 +390,34 @@ with st.expander("⚠️ Shift Data Wipe & Cleanup Utilities"):
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- LOOKAHEAD ENGINE: CASCADING NEXT-DAY BORROWING PROTOCOL ---
+# --- LOOKAHEAD ENGINE: REVERSED HISTORY BACKWARD-LOOKING PROTOCOL ---
 def compile_lookahead_dataset(base_df, start_date, profile_str, shift_str):
     combined_df = base_df.copy()
     borrowed_logs = []
     
+    # 20 Subgroups * 5 samples each = 100 total samples target threshold
     if len(combined_df) >= 20:
         return combined_df, borrowed_logs
 
     current_scan_date = start_date
-    max_lookahead_days = 15
+    max_lookback_days = 15
     
-    for _ in range(max_lookahead_days):
-        current_scan_date += timedelta(days=1)
+    # Scans backward to fill data matrix up to 100 samples
+    for _ in range(max_lookback_days):
+        current_scan_date -= timedelta(days=1)
         scan_key = f"{profile_str}_{current_scan_date}_{shift_str}"
         scan_file = os.path.join(DATA_DIR, f"spc_datastore_{scan_key}.csv")
         
         if os.path.exists(scan_file):
             try:
-                next_df = pd.read_csv(scan_file)
-                if not next_df.empty:
+                prev_df = pd.read_csv(scan_file)
+                if not prev_df.empty:
                     needed_subgroups = 20 - len(combined_df)
-                    available_subgroups = len(next_df)
+                    available_subgroups = len(prev_df)
                     
                     take_count = min(needed_subgroups, available_subgroups)
                     if take_count > 0:
-                        rows_to_borrow = next_df.head(take_count).copy()
+                        rows_to_borrow = prev_df.tail(take_count).copy()
                         borrowed_logs.append({
                             'date': current_scan_date.strftime('%Y-%m-%d'),
                             'subgroups': take_count
@@ -429,7 +431,7 @@ def compile_lookahead_dataset(base_df, start_date, profile_str, shift_str):
         combined_df['Sample'] = range(1, len(combined_df) + 1)
     return combined_df, borrowed_logs
 
-# Compile lookahead calculation matrix frame
+# Compile calculation matrix frame
 df_raw = st.session_state[state_key].copy()
 df, lookahead_history = compile_lookahead_dataset(df_raw, active_date, clean_size_str, clean_shift_str)
 current_subgroups = len(df_raw)
@@ -440,6 +442,7 @@ usl, target, lsl = config["usl"], config["target"], config["lsl"]
 d2, A2, D4 = 2.3330, 0.5770, 2.1150
 absolute_min_allowed, absolute_max_allowed = lsl * 0.96, usl * 1.04
 
+# --- DEFENSIVE DATA MATH CALCULATION SHIELD ---
 if not df.empty:
     df['Mean'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].mean(axis=1)
     df['Range'] = df[['X1', 'X2', 'X3', 'X4', 'X5']].max(axis=1) - df[['X1', 'X2', 'X3', 'X4', 'X5']].min(axis=1)
@@ -454,11 +457,10 @@ if not df.empty:
     overall_std = float(np.std(flattened, ddof=1)) if len(flattened) > 1 else 0.001
     ucl_x, lcl_x = grand_mean + (A2 * average_range), grand_mean - (A2 * average_range)
     ucl_r, lcl_r = D4 * average_range, 0.0
-    gen_movement = float(np.std(df['Mean'].diff().dropna())) if len(df) > 1 else 0.0
 else:
     total_obs = 0; grand_mean = target; average_range = 0.0; span_obs = 0.0; grand_median = target
-    variance_obs = 0.0; std_dev = 0.001; overall_std = 0.001; ucl_x = target; lcl_x = target; ucl_r = 0.0; gen_movement = 0.0
-    flattened = np.array([target])
+    variance_obs = 0.0; std_dev = 0.001; overall_std = 0.001; ucl_x = target; lcl_x = target; ucl_r = 0.0
+    flattened = np.array([])
 
 # --- PROCESS SPECIFICATION STANDARDS EXPOSED VIA ULTRA-BRIGHT READ-ONLY CUSTOM HTML PLATES ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>🛠️ 2. PROCESS SPECIFICATION STANDARDS & TARGET BOUNDARIES [SECURED READ-ONLY]</p>", unsafe_allow_html=True)
@@ -470,7 +472,7 @@ sc4.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhar
 sc5.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart A2</div><div class="spec-plate-value">{A2:.4f}</div></div>', unsafe_allow_html=True)
 sc6.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart D4</div><div class="spec-plate-value">{D4:.4f}</div></div>', unsafe_allow_html=True)
 
-# --- GRAPHING SUB-ENGINE ---
+# --- GRAPHING SUB-ENGINE WITH SAFE EMPTY DATA PROTECTION ---
 def build_plots(data_frame, flat_array):
     diode_yellow_title = dict(color='#FFBB00', family='Orbitron, Share Tech Mono, monospace', size=15)
     x_min, x_max = (data_frame['Sample'].min(), data_frame['Sample'].max()) if not data_frame.empty else (1, 20)
@@ -491,13 +493,12 @@ def build_plots(data_frame, flat_array):
     fig_r.update_layout(title=dict(text="<b>⚡ 2=> R-BAR RANGE VARIABILITY CHART</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10))
     
     fig_s = go.Figure()
-    fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
-    
-    xs = np.linspace(min(flat_array.min(), lsl), max(flat_array.max(), usl), 100)
-    ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
-    
-    if not data_frame.empty:
+    if len(flat_array) > 0:
+        fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
+        xs = np.linspace(min(flat_array.min(), lsl), max(flat_array.max(), usl), 100)
+        ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
         fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
+        
     fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
@@ -513,14 +514,16 @@ st.markdown(f"""
         <td class="lateral-cell"><div class="cell-label">USL</div><div class="cell-value">{usl:.4f}</div><div class="cell-desc">Upper Spec Limit max threshold.</div></td>
         <td class="lateral-cell"><div class="cell-label">LSL</div><div class="cell-value">{lsl:.4f}</div><div class="cell-desc">Lower Spec Limit scrap threshold.</div></td>
         <td class="lateral-cell"><div class="cell-label">Range Mean (R̄)</div><div class="cell-value">{average_range:.4f}</div><div class="cell-desc">Average subgroup internal dispersion spread.</div></td>
-        <td class="lateral-cell"><div class="cell-label">Total Subgroups</div><div class="cell-value">{total_subgroups_calculated} / 20</div><div class="cell-desc">Subgroups compiled (Retained + Lookahead).</div></td>
+        <td class="lateral-cell"><div class="cell-label">Total Subgroups</div><div class="cell-value">{total_subgroups_calculated} / 20</div><div class="cell-desc">Subgroups compiled (Retained + Lookback).</div></td>
     </tr>
 </table>
 """, unsafe_allow_html=True)
 
+# DYNAMIC DATES REPORTING BLOCK - FIXES THE HARDCODED STALE DATES DISPLAY
 if lookahead_history:
-    st.info(f"🔄 **LOOKAHEAD STATUS ACTIVE:** Found only {current_subgroups} native subgroups. Borrowed remaining subgroups sequentially from: " + 
-            ", ".join([f"`{item['date']}` (+{item['subgroups']} groups)" for item in lookahead_history]))
+    dates_found_str = ", ".join([f"**{item['date']}** (+{item['subgroups']} groups)" for item in lookahead_history])
+    st.info(f"🔄 **LOOKBACK MECHANISM ENGAGED:** Found only {current_subgroups} native subgroups on this date. "
+            f"Successfully borrowed history sequentially from: {dates_found_str}")
 
 st.markdown("---")
 split_col1, split_col2 = st.columns([1.1, 1.9])
