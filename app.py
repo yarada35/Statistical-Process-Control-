@@ -199,10 +199,13 @@ if not os.path.exists(DATA_DIR):
 MANAGER_PASSTOKEN = "ADDIS_QA_2026"
 REGISTRY_FILE = os.path.join(DATA_DIR, "profile_registry_config.csv")
 
+# --- MASTER BLUEPRINT COMPONENT COMPREHENSIVE DEFINITIONS BASELINE ---
 MASTER_FACTORY_BASICS = {
     "750-16 HT-99 Treadweight": {"target": 11.1600, "usl": 11.4948, "lsl": 10.8252, "seed_mean": 11.1600, "seed_sigma": 0.0395},
+    "750-16 HT-95 Greenweight": {"target": 10.9500, "usl": 11.2785, "lsl": 10.6215, "seed_mean": 10.9500, "seed_sigma": 0.0380},
     "400-8 HT-60 Treadweight": {"target": 2.0200, "usl": 2.0806, "lsl": 1.9594, "seed_mean": 2.0200, "seed_sigma": 0.0216},
-    "195 R15 Treadweight": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.5000, "seed_sigma": 0.0310},
+    "195 R15 Greenweight": {"target": 5.5000, "usl": 5.6650, "lsl": 5.3350, "seed_mean": 5.5000, "seed_sigma": 0.0310},
+    "215 R15 Greenweight": {"target": 6.2000, "usl": 6.3860, "lsl": 6.0140, "seed_mean": 6.2000, "seed_sigma": 0.0350},
     "205 Treadweight": {"target": 6.8000, "usl": 7.0040, "lsl": 6.5960, "seed_mean": 6.8000, "seed_sigma": 0.0400},
     "700-16 HT-40 Treadweight": {"target": 9.8000, "usl": 10.0940, "lsl": 9.5060, "seed_mean": 9.8000, "seed_sigma": 0.0500},
     "Rubberizing KIP Coating Gauge": {"target": 1.2000, "usl": 1.2600, "lsl": 1.1400, "seed_mean": 1.2000, "seed_sigma": 0.0100},
@@ -211,6 +214,7 @@ MASTER_FACTORY_BASICS = {
 }
 
 def save_profile_registry(registry_dict):
+    """Safely saves the registry while fully merging updates to avoid purging non-selected models."""
     rows = []
     for name, data in registry_dict.items():
         rows.append({
@@ -219,26 +223,32 @@ def save_profile_registry(registry_dict):
     pd.DataFrame(rows).to_csv(REGISTRY_FILE, index=False)
 
 def load_profile_registry():
+    """Loads configuration file from disk, guaranteeing no active sizes ever vanish."""
     current_registry = {}
     if os.path.exists(REGISTRY_FILE):
         try:
             df_reg = pd.read_csv(REGISTRY_FILE)
             for _, row in df_reg.iterrows():
-                p_name = str(row['profile_name'])
+                p_name = str(row['profile_name']).strip()
                 current_registry[p_name] = {
-                    "target": float(row['target']), "usl": float(row['usl']), "lsl": float(row['lsl']), "seed_mean": float(row['seed_mean']), "seed_sigma": float(row['seed_sigma'])
+                    "target": float(row['target']), "usl": float(row['usl']), "lsl": float(row['lsl']), 
+                    "seed_mean": float(row['seed_mean']), "seed_sigma": float(row['seed_sigma'])
                 }
         except Exception:
             pass
+
+    # CRITICAL FALLBACK FORCE-MERGE PROTOCOL: Protects baseline definitions from vanishing
     updated = False
     for master_key, master_val in MASTER_FACTORY_BASICS.items():
         if master_key not in current_registry:
             current_registry[master_key] = master_val
             updated = True
+            
     if updated or not os.path.exists(REGISTRY_FILE):
         save_profile_registry(current_registry)
     return current_registry
 
+# Initialize Registry Base Context
 st.session_state["COMPONENT_REGISTRY"] = load_profile_registry()
 options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
 
@@ -346,6 +356,7 @@ with st.expander("🔐 Manager Authorization Center: Modify Specifications & Cor
         
         st.markdown("---")
         with st.form(key=f"authorized_edit_form_{clean_size_str}"):
+            st.markdown(f"🖋️ **Rename or Edit Selected Profile Parameters:**")
             edit_name = st.text_input("Modify Profile Display Identifier Name", value=component_size)
             ec1, ec2, ec3 = st.columns(3)
             with ec1: edit_target = ec1.number_input("Modify Target Weight Center", value=float(current_config["target"]), format="%.4f")
@@ -353,14 +364,35 @@ with st.expander("🔐 Manager Authorization Center: Modify Specifications & Cor
             with ec3: edit_lsl = ec3.number_input("Modify Lower Spec Limit (LSL)", value=float(current_config["lsl"]), format="%.4f")
             
             if st.form_submit_button("⚡ COMMIT TARGET CHANGES & SAVE CONFIG"):
+                cleaned_new_name = edit_name.strip()
                 temp_registry = load_profile_registry()
-                temp_registry.pop(component_size, None)
-                temp_registry[edit_name.strip()] = {"target": edit_target, "usl": edit_usl, "lsl": edit_lsl, 'seed_mean': edit_target, 'seed_sigma': max((edit_usl - edit_lsl) / 10.0, 0.001)}
+                
+                # If renaming, remove the old key safely
+                if cleaned_new_name != component_size:
+                    temp_registry.pop(component_size, None)
+                
+                # Write/Update the configuration settings
+                temp_registry[cleaned_new_name] = {
+                    "target": edit_target, "usl": edit_usl, "lsl": edit_lsl, 
+                    'seed_mean': edit_target, 'seed_sigma': max((edit_usl - edit_lsl) / 10.0, 0.001)
+                }
+                
                 save_profile_registry(temp_registry)
                 st.session_state["COMPONENT_REGISTRY"] = temp_registry
-                st.session_state["active_profile_name"] = edit_name.strip()
-                st.success("✓ Profile blueprint committed.")
+                st.session_state["active_profile_name"] = cleaned_new_name
+                st.success("✓ Profile blueprint committed cleanly without data loss.")
                 st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- ISO-BALANCED ACTIVE SHIFT LOG PURGE ENGINE ---
+with st.expander("⚠️ Shift Data Wipe & Cleanup Utilities"):
+    st.markdown("<div class='management-card' style='border: 1px solid #FF3333;'>", unsafe_allow_html=True)
+    if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY FOR THIS SHIFT ONLY", key="shift_purge_btn"):
+        if os.path.exists(CSV_FILE_PATH): os.remove(CSV_FILE_PATH)
+        st.session_state.pop(state_key, None)
+        st.session_state.pop(archive_key, None)
+        st.success("💥 Shift historical data registers purged completely.")
+        st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- LOOKAHEAD ENGINE: CASCADING NEXT-DAY BORROWING PROTOCOL ---
@@ -368,12 +400,11 @@ def compile_lookahead_dataset(base_df, start_date, profile_str, shift_str):
     combined_df = base_df.copy()
     borrowed_logs = []
     
-    # 20 Subgroups * 5 measurements per Subgroup = 100 Total Samples
     if len(combined_df) >= 20:
         return combined_df, borrowed_logs
 
     current_scan_date = start_date
-    max_lookahead_days = 15  # Limit check depth to prevent endless disk searching
+    max_lookahead_days = 15
     
     for _ in range(max_lookahead_days):
         current_scan_date += timedelta(days=1)
@@ -395,17 +426,15 @@ def compile_lookahead_dataset(base_df, start_date, profile_str, shift_str):
                             'subgroups': take_count
                         })
                         combined_df = pd.concat([combined_df, rows_to_borrow], ignore_index=True)
-                        
                         if len(combined_df) >= 20:
                             break
             except Exception: pass
             
-    # Normalize index sequencing for the calculation arrays
     if not combined_df.empty:
         combined_df['Sample'] = range(1, len(combined_df) + 1)
     return combined_df, borrowed_logs
 
-# Generate aggregated dynamic dataset 
+# Compile lookahead calculation matrix frame
 df_raw = st.session_state[state_key].copy()
 df, lookahead_history = compile_lookahead_dataset(df_raw, active_date, clean_size_str, clean_shift_str)
 current_subgroups = len(df_raw)
@@ -468,6 +497,7 @@ def build_plots(data_frame, flat_array):
     fig_s = go.Figure()
     fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
     xs = np.linspace(min(flat_array.min(), lsl), max(flat_array.max(), usl), 100)
+    ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
     fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2))) if not data_frame.empty else None
     fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
     fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
@@ -489,7 +519,6 @@ st.markdown(f"""
 </table>
 """, unsafe_allow_html=True)
 
-# --- LOOKAHEAD NOTIFICATION ALERT SYSTEMS ---
 if lookahead_history:
     st.info(f"🔄 **LOOKAHEAD STATUS ACTIVE:** Found only {current_subgroups} native subgroups. Borrowed remaining subgroups sequentially from: " + 
             ", ".join([f"`{item['date']}` (+{item['subgroups']} groups)" for item in lookahead_history]))
