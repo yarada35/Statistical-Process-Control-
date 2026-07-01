@@ -399,7 +399,8 @@ def compile_lookahead_dataset(base_df, start_date, profile_str, shift_str):
         return combined_df, borrowed_logs
 
     current_scan_date = start_date
-    max_lookback_days = 15
+    # Expanded lookback window to safely pull data across month crossovers
+    max_lookback_days = 30 
     
     for _ in range(max_lookback_days):
         current_scan_date -= timedelta(days=1)
@@ -500,6 +501,7 @@ with split_col1:
     else:
         st.markdown(f"<div class='sop-card'><b>📋 STORAGE REGISTER:</b> {active_shift}<br>Retained Native Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
         with st.form(key=f"data_entry_form_{unique_data_key}"):
+            next_id = current_subgroups + 1
             supervisor_name = st.text_input("Supervisor Signature", value="Supervisor 1")
             v1 = st.number_input("Measurement X1", value=float(target), format="%.4f")
             v2 = st.number_input("Measurement X2", value=float(target), format="%.4f")
