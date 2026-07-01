@@ -395,14 +395,12 @@ def compile_lookahead_dataset(base_df, start_date, profile_str, shift_str):
     combined_df = base_df.copy()
     borrowed_logs = []
     
-    # 20 Subgroups * 5 samples each = 100 total samples target threshold
     if len(combined_df) >= 20:
         return combined_df, borrowed_logs
 
     current_scan_date = start_date
     max_lookback_days = 15
     
-    # Scans backward to fill data matrix up to 100 samples
     for _ in range(max_lookback_days):
         current_scan_date -= timedelta(days=1)
         scan_key = f"{profile_str}_{current_scan_date}_{shift_str}"
@@ -472,39 +470,6 @@ sc4.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhar
 sc5.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart A2</div><div class="spec-plate-value">{A2:.4f}</div></div>', unsafe_allow_html=True)
 sc6.markdown(f'<div class="spec-plate-box"><div class="spec-plate-label">Shewhart D4</div><div class="spec-plate-value">{D4:.4f}</div></div>', unsafe_allow_html=True)
 
-# --- GRAPHING SUB-ENGINE WITH SAFE EMPTY DATA PROTECTION ---
-def build_plots(data_frame, flat_array):
-    diode_yellow_title = dict(color='#FFBB00', family='Orbitron, Share Tech Mono, monospace', size=15)
-    x_min, x_max = (data_frame['Sample'].min(), data_frame['Sample'].max()) if not data_frame.empty else (1, 20)
-
-    fig_x = go.Figure()
-    if not data_frame.empty:
-        fig_x.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
-    fig_x.add_shape(type="line", x0=x_min, y0=grand_mean, x1=x_max, y1=grand_mean, line=dict(color="white", width=1.5))
-    fig_x.add_shape(type="line", x0=x_min, y0=ucl_x, x1=x_max, y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
-    fig_x.add_shape(type="line", x0=x_min, y0=lcl_x, x1=x_max, y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
-    fig_x.update_layout(title=dict(text="<b>⚡ 1=> X-BAR PROCESS CONTROL CHART</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10))
-    
-    fig_r = go.Figure()
-    if not data_frame.empty: 
-        fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
-    fig_r.add_shape(type="line", x0=x_min, y0=average_range, x1=x_max, y1=average_range, line=dict(color="white", width=1.5))
-    fig_r.add_shape(type="line", x0=x_min, y0=ucl_r, x1=x_max, y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
-    fig_r.update_layout(title=dict(text="<b>⚡ 2=> R-BAR RANGE VARIABILITY CHART</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10))
-    
-    fig_s = go.Figure()
-    if len(flat_array) > 0:
-        fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
-        xs = np.linspace(min(flat_array.min(), lsl), max(flat_array.max(), usl), 100)
-        ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
-        fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
-        
-    fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
-    fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
-    fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
-    fig_s.update_layout(title=dict(text="<b>📊 3=> PROCESS CURVE -VS- SPEC.</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10), showlegend=False)
-    return fig_x, fig_r, fig_s
-
 # --- PANEL 2: LATERAL MATRIX DISPLAY ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 LIVE PROCESS SUMMARY PARAMETERS MATRIX (AGGREGATED DATA)</p>", unsafe_allow_html=True)
 st.markdown(f"""
@@ -519,8 +484,8 @@ st.markdown(f"""
 </table>
 """, unsafe_allow_html=True)
 
-# DYNAMIC DATES REPORTING BLOCK - FIXES THE HARDCODED STALE DATES DISPLAY
-if lookahead_history:
+# SAFE LOOKAHEAD DISPLAY FILTER: ONLY PRINTS IF SAMPLES WERE ACTUALLY DISCOVERED IN HISTORY
+if lookahead_history and total_subgroups_calculated > 0:
     dates_found_str = ", ".join([f"**{item['date']}** (+{item['subgroups']} groups)" for item in lookahead_history])
     st.info(f"🔄 **LOOKBACK MECHANISM ENGAGED:** Found only {current_subgroups} native subgroups on this date. "
             f"Successfully borrowed history sequentially from: {dates_found_str}")
@@ -535,7 +500,6 @@ with split_col1:
     else:
         st.markdown(f"<div class='sop-card'><b>📋 STORAGE REGISTER:</b> {active_shift}<br>Retained Native Count: <b>{current_subgroups}/20 Subgroups</b></div>", unsafe_allow_html=True)
         with st.form(key=f"data_entry_form_{unique_data_key}"):
-            next_id = current_subgroups + 1
             supervisor_name = st.text_input("Supervisor Signature", value="Supervisor 1")
             v1 = st.number_input("Measurement X1", value=float(target), format="%.4f")
             v2 = st.number_input("Measurement X2", value=float(target), format="%.4f")
@@ -568,6 +532,38 @@ with split_col2:
 st.markdown("---")
 
 # --- PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS ---
+def build_plots(data_frame, flat_array):
+    diode_yellow_title = dict(color='#FFBB00', family='Orbitron, Share Tech Mono, monospace', size=15)
+    x_min, x_max = (data_frame['Sample'].min(), data_frame['Sample'].max()) if not data_frame.empty else (1, 20)
+
+    fig_x = go.Figure()
+    if not data_frame.empty:
+        fig_x.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Mean'], mode='lines+markers', name='Mean', line=dict(color='#00FF66', width=2)))
+    fig_x.add_shape(type="line", x0=x_min, y0=grand_mean, x1=x_max, y1=grand_mean, line=dict(color="white", width=1.5))
+    fig_x.add_shape(type="line", x0=x_min, y0=ucl_x, x1=x_max, y1=ucl_x, line=dict(color="red", dash="dash", width=1.5))
+    fig_x.add_shape(type="line", x0=x_min, y0=lcl_x, x1=x_max, y1=lcl_x, line=dict(color="red", dash="dash", width=1.5))
+    fig_x.update_layout(title=dict(text="<b>⚡ 1=> X-BAR PROCESS CONTROL CHART</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10))
+    
+    fig_r = go.Figure()
+    if not data_frame.empty: 
+        fig_r.add_trace(go.Scatter(x=data_frame['Sample'], y=data_frame['Range'], mode='lines+markers', name='Range', line=dict(color='#00FFFF', width=2)))
+    fig_r.add_shape(type="line", x0=x_min, y0=average_range, x1=x_max, y1=average_range, line=dict(color="white", width=1.5))
+    fig_r.add_shape(type="line", x0=x_min, y0=ucl_r, x1=x_max, y1=ucl_r, line=dict(color="red", dash="dash", width=1.5))
+    fig_r.update_layout(title=dict(text="<b>⚡ 2=> R-BAR RANGE VARIABILITY CHART</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10))
+    
+    fig_s = go.Figure()
+    if len(flat_array) > 0:
+        fig_s.add_trace(go.Histogram(x=flat_array, histnorm='probability density', marker_color='#1A2620', opacity=0.85, marker_line=dict(width=1, color='#00FF66')))
+        xs = np.linspace(min(flat_array.min(), lsl), max(flat_array.max(), usl), 100)
+        ys = norm.pdf(xs, grand_mean, std_dev if std_dev > 0 else 0.001)
+        fig_s.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color='#FFBB00', width=2)))
+        
+    fig_s.add_vline(x=lsl, line_dash="dot", line_color="red", line_width=1.5)
+    fig_s.add_vline(x=usl, line_dash="dot", line_color="red", line_width=1.5)
+    fig_s.add_vline(x=target, line_color="#00FF66", line_width=1.5)
+    fig_s.update_layout(title=dict(text="<b>📊 3=> PROCESS CURVE -VS- SPEC.</b>", font=diode_yellow_title, x=0.02), paper_bgcolor='#0A0A0C', plot_bgcolor='#0F1214', font_color="#00FF66", height=230, margin=dict(l=10, r=10, t=55, b=10), showlegend=False)
+    return fig_x, fig_r, fig_s
+
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>📊 PARALLEL PROCESS DIAGNOSTICS CONTROL GRAPHS (LOCKED VIEWMODE)</p>", unsafe_allow_html=True)
 g1, g2, g3 = st.columns([1.4, 1.4, 1.2])
 fx, fr, fs = build_plots(df, flattened)
