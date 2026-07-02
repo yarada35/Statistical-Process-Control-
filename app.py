@@ -254,9 +254,6 @@ options_list = list(st.session_state["COMPONENT_REGISTRY"].keys())
 if "active_profile_name" not in st.session_state or st.session_state["active_profile_name"] not in options_list:
     st.session_state["active_profile_name"] = options_list[0]
 
-if "previous_unique_datakey" not in st.session_state:
-    st.session_state["previous_unique_datakey"] = ""
-
 # --- ACTIVE COMPONENT SELECTION & SHIFT MATRIX METADATA BAR ---
 st.markdown("<p style='font-size:13px; font-weight:bold; letter-spacing:2px;'>⚙️ 1. COMPONENT SELECTION & ACTIVE LINE SHIFT TRACKING REGISTRY</p>", unsafe_allow_html=True)
 row_sel1, row_sel2, row_sel3, row_sel4 = st.columns([2, 1, 1, 1])
@@ -284,15 +281,11 @@ unique_data_key = f"{clean_size_str}_{active_date}_{clean_shift_str}"
 CSV_FILE_PATH = os.path.join(DATA_DIR, f"spc_datastore_{unique_data_key}.csv")
 
 state_key = f"dataset_{unique_data_key}"
-archive_key = f"archive_{unique_data_key}"
 
 def generate_fresh_baseline():
     return pd.DataFrame(columns=['Sample', 'Timestamp', 'Supervisor', 'Shift', 'X1', 'X2', 'X3', 'X4', 'X5'])
 
-# Safe cache state synchronization tracking
-if st.session_state["previous_unique_datakey"] != unique_data_key:
-    st.session_state["previous_unique_datakey"] = unique_data_key
-
+# --- RE-ENGINEERED DIRECT CACHE-TO-FILE SYNCHRONIZATION SHIELD ---
 if os.path.exists(CSV_FILE_PATH):
     try:
         st.session_state[state_key] = pd.read_csv(CSV_FILE_PATH)
@@ -385,7 +378,6 @@ with st.expander("⚠️ Shift Data Wipe & Cleanup Utilities"):
     if st.button("🗑️ PURGE CRITICAL DATASTORE HISTORY FOR THIS SHIFT ONLY", key="shift_purge_btn"):
         if os.path.exists(CSV_FILE_PATH): os.remove(CSV_FILE_PATH)
         st.session_state.pop(state_key, None)
-        st.session_state.pop(archive_key, None)
         st.success("💥 Shift historical data registers purged completely.")
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -399,7 +391,6 @@ def compile_lookahead_dataset(base_df, start_date, profile_str, shift_str):
         return combined_df, borrowed_logs
 
     current_scan_date = start_date
-    # Expanded lookback window to safely pull data across month crossovers
     max_lookback_days = 30 
     
     for _ in range(max_lookback_days):
@@ -526,10 +517,11 @@ with split_col1:
 
 with split_col2:
     st.markdown(f"<p style='font-size:13px; font-weight:bold; letter-spacing:1px;'>📋 WORKING ANALYSIS SPECIMENS (TOTAL: {total_subgroups_calculated} SUBGROUPS)</p>", unsafe_allow_html=True)
+    # CRITICAL FIX: Changed from df_raw to compiled df to match lookback calculations perfectly
     if not df.empty:
         st.dataframe(df.style.format("{:.4f}", subset=['X1', 'X2', 'X3', 'X4', 'X5']), height=270, use_container_width=True)
     else: 
-        st.info("💡 Shift register completely blank.")
+        st.info("📋 Shift register completely blank.")
 
 st.markdown("---")
 
